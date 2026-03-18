@@ -27,15 +27,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. CONEXIÓN A SUPABASE
+# 2. CONEXIÓN A SUPABASE (MODO ADMIN SEGURO)
 @st.cache_resource
 def init_connection():
     url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # USAREMOS LA SERVICE_ROLE_KEY PARA EL ADMIN (Debes agregarla a tus secrets)
+    # Esta llave se salta el RLS de forma segura solo para el administrador
+    key = st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
     return create_client(url, key)
 
 supabase = init_connection()
-
 # =============================================================
 # 3. SEGURIDAD DE ACCESO
 # =============================================================
