@@ -208,74 +208,71 @@ def seccion_solicitudes():
 # with tab3: seccion_planes()
             
 # =============================================================
-# 5. LÓGICA PRINCIPAL (RESPONSIVE PRO)
+# 5. LÓGICA PRINCIPAL (FULL WIDTH + LOGOUT + BIOMETRÍA)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS Dinámico para corregir el layout en móviles
+    # Inyectar CSS y JS para Biometría y UI Responsiva
     st.markdown("""
         <style>
-        /* Ajustes Globales para móviles */
-        @media (max-width: 640px) {
-            /* Forzar que las columnas de Streamlit se apilen verticalmente */
-            [data-testid="column"] {
-                width: 100% !important;
-                flex: 1 1 100% !important;
-                min-width: 100% !important;
-                margin-bottom: 1rem !important;
-            }
-            
-            /* Ajustar el título para que no se corte */
-            .main-title { 
-                font-size: 24px !important; 
-                line-height: 1.2 !important;
-                padding: 10px 0 !important;
-            }
-
-            /* Hacer las métricas más compactas pero legibles */
-            [data-testid="stMetric"] {
-                display: block !important;
-                width: 100% !important;
-                margin-bottom: 10px !important;
-            }
-
-            /* Tabs: scroll horizontal si no caben */
-            .stTabs [data-baseweb="tab-list"] {
-                gap: 5px !important;
-            }
-            .stTabs [data-baseweb="tab"] {
-                font-size: 14px !important;
-                padding: 10px !important;
-            }
-
-            /* Inputs y botones más grandes para dedos */
-            .stButton button, .stDownloadButton button {
-                width: 100% !important;
-                height: 55px !important;
-                font-size: 18px !important;
-            }
-            
-            input {
-                height: 50px !important;
-            }
-        }
+        /* Ocultar sidebar */
+        [data-testid="stSidebar"], [data-testid="stSidebarNav"] { display: none !important; }
         
-        /* Limpiar espacios innecesarios en la parte superior */
-        .block-container {
-            padding-top: 1rem !important;
+        /* Ajustar contenedor principal */
+        .block-container { padding-top: 1rem !important; max-width: 95% !important; }
+
+        /* Botón estilo FaceID */
+        .bio-btn {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white; padding: 10px; border-radius: 10px; text-align: center;
+            cursor: pointer; font-weight: bold; margin-bottom: 10px;
+        }
+
+        @media (max-width: 640px) {
+            .main-title { font-size: 20px !important; }
+            [data-testid="column"] { width: 100% !important; flex: 1 1 100% !important; margin-bottom: 0.5rem !important; }
+            .stButton button { height: 50px !important; }
         }
         </style>
+
+        <script>
+        async function authBiometric() {
+            if (window.PublicKeyCredential) {
+                try {
+                    // Esto activa el prompt nativo de FaceID/TouchID del teléfono
+                    const credential = await navigator.credentials.get({
+                        publicKey: { challenge: new Uint8Array([1,2,3,4]), timeout: 60000 }
+                    });
+                    console.log("Autenticación exitosa");
+                } catch (e) {
+                    console.log("El usuario canceló o no hay biometría configurada");
+                }
+            } else {
+                alert("Tu navegador no soporta FaceID/WebAuthn");
+            }
+        }
+        </script>
     """, unsafe_allow_html=True)
 
-    # Barra lateral SaaS
-    with st.sidebar:
-        st.image("https://cdn-icons-png.flaticon.com/512/6195/6195700.png", width=50)
-        st.title("ME Admin")
-        st.write("---")
-        if st.button("🚪 Cerrar Sesión", use_container_width=True):
+    # --- HEADER CON LOGOUT Y FACEID ---
+    col_head_title, col_head_bio, col_head_logout = st.columns([3, 1.2, 0.8])
+    
+    with col_head_title:
+        st.markdown("<h1 class='main-title' style='margin:0;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
+    
+    with col_head_bio:
+        # Botón visual que simula la activación de FaceID
+        if st.button("🆔 FaceID/TouchID", use_container_width=True):
+            st.toast("Iniciando sensor biométrico...", icon="👤")
+            # Nota: WebAuthn requiere HTTPS para funcionar en producción
+    
+    with col_head_logout:
+        if st.button("🚪 Salir", use_container_width=True):
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
             st.rerun()
+
+    st.write("---")
 
     # Contenido principal
     try:
@@ -283,46 +280,30 @@ if check_password():
         res_p = supabase.table("perfiles").select("*").execute()
         df_clientes = pd.DataFrame(res_p.data)
 
-        # Título centrado y responsivo
-        st.markdown("<h1 class='main-title' style='text-align: center;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
-        
-        # En móvil, las métricas se apilarán gracias al CSS de arriba
         mostrar_metricas(df_clientes)
         
-        # Tabs optimizados
         tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
 
         with tab1:
             st.markdown("### 📋 Suscriptores")
-            # Permitir scroll horizontal en la tabla para no romper el diseño
-            st.dataframe(
-                df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
-                use_container_width=True
-            )
+            st.dataframe(df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], use_container_width=True)
 
             with st.expander("✏️ Editar Licencia", expanded=True):
                 cliente_sel = st.selectbox("Seleccionar Email:", df_clientes["email"].tolist())
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
 
-                # Estas columnas se verán una al lado de otra en PC, pero una sobre otra en MÓVIL
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
-                    nuevo_status = st.segmented_control(
-                        "Estatus:", 
-                        ["activo", "suspendido", "vencido"], 
-                        default=datos_cliente['status']
-                    )
+                    nuevo_status = st.segmented_control("Estatus:", ["activo", "suspendido", "vencido"], default=datos_cliente['status'])
                 with col_b:
                     fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
                     opcion_t = st.selectbox("Extender por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
-                    
                     nueva_f = fecha_orig
                     if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
                     elif opcion_t == "3 Meses": nueva_f += timedelta(days=90)
                     elif opcion_t == "6 Meses": nueva_f += timedelta(days=180)
                     elif opcion_t == "1 Año": nueva_f += timedelta(days=365)
-                    
                     st.info(f"Vence: **{nueva_f.strftime('%Y-%m-%d')}**")
 
                 if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
