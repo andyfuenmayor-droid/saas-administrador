@@ -81,64 +81,92 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
-# --- 2. SECCIÓN DE SOLICITUDES (BLINDADA) ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # Botón de refresco total
-    if st.button("🔄 Forzar Sincronización Real", use_container_width=True):
+    if st.button("🔄 Sincronizar Base de Datos", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     
     try:
-        # CONSULTA DIRECTA SIN FILTROS
         res = supabase.table("suscriptores_leads").select("*").execute()
         leads = res.data
 
-        if not leads or len(leads) == 0:
-            st.markdown("""
-                <div style='text-align: center; padding: 40px; background: white; border-radius: 15px; border: 1px dashed #cbd5e1;'>
-                    <p style='color: #64748b; font-size: 18px;'>No hay solicitudes nuevas en este momento.</p>
-                    <p style='color: #94a3b8; font-size: 14px;'>Si ya enviaste una, verifica que estás usando la <b>Service Role Key</b> en los secrets.</p>
-                </div>
-            """, unsafe_allow_html=True)
+        if not leads:
+            st.info("💡 No hay solicitudes nuevas en este momento.")
         else:
             df_leads = pd.DataFrame(leads)
             
-            # Limpieza y ordenamiento
-            df_leads.columns = [c.strip() for c in df_leads.columns]
-            if 'fecha' in df_leads.columns:
-                df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
-                df_leads = df_leads.sort_values(by='fecha', ascending=False)
-                df_leads['fecha'] = df_leads['fecha'].dt.strftime('%d/%m/%Y %H:%M')
-
-            st.success(f"✅ Se encontraron {len(df_leads)} solicitudes registradas.")
-            
-            # Vista Tabla SaaS Pro
+            # --- VISTA DE TABLA PRINCIPAL ---
             st.dataframe(
-                df_leads, 
+                df_leads[["fecha", "banca", "representante", "telefono"]], 
                 use_container_width=True,
-                height=450,
-                column_config={
-                    "fecha": "📅 Recibido",
-                    "banca": "🏦 Agencia",
-                    "representante": "👤 Titular",
-                    "email": "📧 Correo",
-                    "telefono": "📲 WhatsApp",
-                    "puntos_venta": "📍 Puntos"
-                }
+                column_config={"fecha": "📅", "banca": "Banco/Agencia", "telefono": "WhatsApp"}
             )
-            
+
             st.divider()
-            if st.button("🗑️ Vaciar Historial de Leads", type="secondary"):
-                # Borrado seguro
-                supabase.table("suscriptores_leads").delete().neq("banca", "BORRADO_MAESTRO").execute()
-                st.success("Registros eliminados.")
+            st.subheader("🔍 Gestor de Contacto Directo")
+            
+            # Seleccionar lead para ver detalle
+            opciones = {f"{l['banca']} - {l['representante']}": l for l in leads}
+            seleccion = st.selectbox("Seleccione una solicitud para ver detalle y costos:", options=opciones.keys())
+            
+            if seleccion:
+                lead = opciones[seleccion]
+                
+                col_det, col_whatsapp = st.columns([1, 1])
+                
+                with col_det:
+                    st.markdown(f"""
+                    **Detalles del Expediente:**
+                    - 🏦 **Banca:** {lead['banca']}
+                    - 👤 **Representante:** {lead['representante']}
+                    - 📧 **Correo:** {lead['email']}
+                    - 📍 **Puntos de Venta:** {lead['puntos_venta']}
+                    - 🗺️ **Ubicación:** {lead['estado']}
+                    - 🏠 **Dirección:** {lead['direccion']}
+                    """)
+
+                with col_whatsapp:
+                    st.markdown("**💰 Estructura de Costos Sugerida:**")
+                    # Calculamos un presupuesto rápido basado en puntos de venta
+                    costo_base = 100 # Ejemplo
+                    costo_por_punto = 10
+                    total = costo_base + (int(lead['puntos_venta']) * costo_por_punto)
+                    
+                    st.code(f"""
+Plan: Suscripción Anual SaaS
+Costo Base: ${costo_base} USD
+Mantenimiento: ${costo_por_punto} USD x {lead['puntos_venta']} pts
+Total Estimado: ${total} USD
+                    """, language="text")
+
+                    # --- LÓGICA DE WHATSAPP ---
+                    # Limpiamos el número (quitamos + o espacios)
+                    tel_clean = "".join(filter(str.isdigit, str(lead['telefono'])))
+                    
+                    mensaje_ws = (
+                        f"Hola *{lead['representante']}*, te saludamos de *Multibanca Express*. "
+                        f"Recibimos tu solicitud para la banca *{lead['banca']}*. "
+                        f"Aquí tienes la estructura de costos para tus {lead['puntos_venta']} puntos:\n\n"
+                        f"✅ Plan Anual SaaS\n"
+                        f"✅ Soporte Premium\n"
+                        f"💰 *Inversión Total: ${total} USD*\n\n"
+                        f"¿Te gustaría proceder con la activación?"
+                    )
+                    
+                    # Link de WhatsApp Me
+                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_ws.replace(' ', '%20')}"
+                    
+                    st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", ws_url, use_container_width=True)
+
+            st.divider()
+            if st.button("🗑️ Vaciar Historial", type="secondary"):
+                supabase.table("suscriptores_leads").delete().neq("banca", "x").execute()
                 st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 Fallo crítico en la consulta")
-        st.code(str(e))
+        st.error(f"Error: {e}")
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
