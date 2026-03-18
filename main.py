@@ -81,67 +81,65 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
+# --- SECCIÓN DE SOLICITUDES ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # Botón de refresco que limpia caché interna
-    if st.button("🔄 Sincronizar con Base de Datos", use_container_width=True):
-        st.cache_data.clear()
+    # Botón pro para forzar la vista y limpiar caché
+    if st.button("🔄 Sincronizar y Ver Solicitudes", use_container_width=True):
+        st.cache_data.clear() # Limpia cualquier dato viejo guardado en RAM
         st.rerun()
     
     try:
-        # CONSULTA PURA
-        # Agregamos un select("*") explícito
-        query = supabase.table("suscriptores_leads").select("*").execute()
-        leads = query.data
+        # CONSULTA DIRECTA (Ahora con permisos de Service Role)
+        res = supabase.table("suscriptores_leads").select("*").execute()
+        leads = res.data
 
         if not leads:
-            st.warning("🔎 El sistema conectó con la tabla, pero Supabase no devolvió filas.")
-            st.info("💡 **Acción requerida:** Ve a Supabase -> Policies -> suscriptores_leads y verifica que la política de SELECT esté aplicada al rol 'anon' o 'public' con USING (true).")
-            
-            # Botón de diagnóstico para ti
-            if st.checkbox("Ver detalles técnicos del enlace"):
-                st.write("Datos recibidos:", leads)
-                st.write("Configuración: Conexión establecida.")
+            st.warning("🔎 El sistema conectó, pero la tabla sigue vacía o el RLS bloqueó el acceso.")
+            st.info("💡 **Tip:** Asegúrate de que la nueva política de SELECT en Supabase permita al rol 'service_role' leer.")
         else:
             df_leads = pd.DataFrame(leads)
             
-            # Limpieza y Formateo
+            # Limpieza de nombres de columnas
             df_leads.columns = [c.strip() for c in df_leads.columns]
             
+            # Ordenar por fecha de forma descendente
             if 'fecha' in df_leads.columns:
                 df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
                 df_leads = df_leads.sort_values(by='fecha', ascending=False)
                 df_leads['fecha'] = df_leads['fecha'].dt.strftime('%d/%m/%Y %H:%M')
 
-            st.success(f"✅ Se encontraron {len(df_leads)} solicitudes.")
+            st.success(f"✅ {len(df_leads)} Solicitudes encontradas.")
             
-            # Vista SaaS Pro
+            # Vista Tabla SaaS Pro
             st.dataframe(
                 df_leads, 
                 use_container_width=True,
                 height=450,
                 column_config={
-                    "fecha": st.column_config.TextColumn("📅 Fecha/Hora"),
-                    "banca": st.column_config.TextColumn("🏦 Agencia"),
-                    "representante": st.column_config.TextColumn("👤 Titular"),
-                    "email": st.column_config.TextColumn("📧 Correo"),
-                    "telefono": st.column_config.TextColumn("📲 WhatsApp"),
-                    "puntos_venta": st.column_config.NumberColumn("📍 Puntos")
+                    "fecha": "📅 Recibido",
+                    "banca": "🏦 Agencia",
+                    "representante": "👤 Titular",
+                    "email": "📧 Correo",
+                    "telefono": "📲 WhatsApp",
+                    "puntos_venta": "📍 Puntos",
+                    "estado": "🗺️ Estado",
+                    "direccion": "🏠 Dirección"
                 }
             )
             
             st.divider()
-            if st.button("🗑️ Vaciar Historial", type="secondary"):
-                # Borrado seguro usando el campo email como referencia
-                supabase.table("suscriptores_leads").delete().neq("email", "DUMMY_EMAIL_999").execute()
-                st.success("Registros eliminados.")
+            if st.button("🗑️ Vaciar Historial Procesado", type="secondary"):
+                # Filtro seguro para borrar
+                supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
+                st.success("Historial eliminado.")
                 time.sleep(1)
                 st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 Fallo en la comunicación con la tabla")
-        st.exception(e)
+        st.error(f"🚨 Fallo de comunicación con Supabase")
+        st.code(str(e))
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
