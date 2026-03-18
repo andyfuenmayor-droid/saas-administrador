@@ -83,50 +83,67 @@ def mostrar_metricas(df):
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # 1. Indicador de carga para saber que el código está trabajando
-    with st.spinner("Consultando base de datos..."):
-        try:
-            # 2. CONSULTA SIN FILTROS (Traer todo para asegurar que se vea algo)
-            # He quitado el .order por ahora para probar si es un tema de índice de fecha
-            res = supabase.table("suscriptores_leads").select("*").execute()
-            leads = res.data
+    # 1. Botón de refresco manual en la esquina
+    col_ref, col_vacia = st.columns([1, 4])
+    if col_ref.button("🔄 Actualizar Datos", use_container_width=True):
+        st.rerun()
+    
+    try:
+        # 2. CONSULTA PURA (Sin ordenamiento SQL para evitar conflictos de caché)
+        res = supabase.table("suscriptores_leads").select("*").execute()
+        leads = res.data
 
-            if not leads or len(leads) == 0:
-                st.warning("⚠️ La base de datos respondió, pero la tabla 'suscriptores_leads' parece estar vacía.")
-                # Botón de auxilio para re-intentar conexión
-                if st.button("🔄 Forzar Re-consulta"):
-                    st.rerun()
-            else:
-                df_leads = pd.DataFrame(leads)
-                
-                # Ordenar manualmente en Python por si el SQL falla
-                if 'fecha' in df_leads.columns:
-                    df_leads['fecha'] = pd.to_datetime(df_leads['fecha'])
-                    df_leads = df_leads.sort_values(by='fecha', ascending=False)
-                    df_leads['fecha'] = df_leads['fecha'].dt.strftime('%Y-%m-%d %H:%M')
+        # 3. Verificación Real
+        if not leads or len(leads) == 0:
+            st.warning("⚠️ No se encontraron registros. Verifica que la política de lectura en Supabase esté permitida para el rol 'public' o 'anon'.")
+            
+            # Auxilio visual: Si la tabla existe pero no hay leads
+            st.info("Nota: Si acabas de registrar uno, asegúrate de haberle dado a 'Guardar Política' en Supabase.")
+        else:
+            # 4. Procesamiento de datos en Python (Más seguro que SQL)
+            df_leads = pd.DataFrame(leads)
+            
+            # Limpieza de nombres de columnas (quitar espacios si los hay)
+            df_leads.columns = [c.strip() for c in df_leads.columns]
+            
+            # Ordenar por fecha (si existe la columna)
+            if 'fecha' in df_leads.columns:
+                df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
+                df_leads = df_leads.sort_values(by='fecha', ascending=False)
+                df_leads['fecha'] = df_leads['fecha'].dt.strftime('%Y-%m-%d %H:%M')
 
-                # 3. Vista SaaS Pro
-                st.success(f"✅ Se encontraron {len(df_leads)} solicitudes registradas.")
-                
-                cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
-                df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
-                
-                st.dataframe(
-                    df_display, 
-                    use_container_width=True,
-                    height=400 # Altura fija para que no se pierda
-                )
-                
-                st.divider()
-                if st.button("🗑️ Limpiar Historial de Solicitudes", type="secondary"):
-                    supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
-                    st.success("Registros eliminados.")
-                    time.sleep(1)
-                    st.rerun()
+            # 5. Muestra de Resultados con Contador Pro
+            st.success(f"✅ {len(df_leads)} Solicitudes encontradas en el sistema.")
+            
+            # Configuración de columnas para que se vea SaaS Pro
+            cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
+            # Mostrar solo las que existan realmente en el DataFrame
+            df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
+            
+            st.dataframe(
+                df_display, 
+                use_container_width=True,
+                height=450,
+                column_config={
+                    "fecha": st.column_config.TextColumn("📅 Recibido"),
+                    "banca": st.column_config.TextColumn("🏦 Empresa"),
+                    "email": st.column_config.TextColumn("📧 Correo"),
+                    "puntos_venta": st.column_config.NumberColumn("📍 Puntos")
+                }
+            )
+            
+            st.divider()
+            # Botón de limpieza al final
+            if st.button("🗑️ Vaciar Historial de Solicitudes", type="secondary"):
+                # Usamos un filtro dummy para permitir el delete total
+                supabase.table("suscriptores_leads").delete().neq("banca", "DUMMY_DATA_X").execute()
+                st.success("Registros eliminados correctamente.")
+                time.sleep(1)
+                st.rerun()
 
-        except Exception as e:
-            st.error(f"🚨 ERROR CRÍTICO: No se pudo leer la tabla. Detalles: {str(e)}")
-            st.info("Sugerencia: Verifica que el nombre de la tabla sea exactamente 'suscriptores_leads' (todo en minúsculas).")
+    except Exception as e:
+        st.error(f"🚨 ERROR CRÍTICO DE LECTURA")
+        st.code(str(e)) # Esto nos dirá si es un tema de permisos o de nombre de columna
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
