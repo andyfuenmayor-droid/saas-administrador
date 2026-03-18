@@ -82,7 +82,7 @@ def mostrar_metricas(df):
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
 def seccion_solicitudes():
-    st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
+    st.markdown("### 🚀 Gestión Estratégica de Leads")
     
     if st.button("🔄 Sincronizar Base de Datos", use_container_width=True):
         st.cache_data.clear()
@@ -95,78 +95,80 @@ def seccion_solicitudes():
         if not leads:
             st.info("💡 No hay solicitudes nuevas en este momento.")
         else:
-            df_leads = pd.DataFrame(leads)
-            
-            # --- VISTA DE TABLA PRINCIPAL ---
-            st.dataframe(
-                df_leads[["fecha", "banca", "representante", "telefono"]], 
-                use_container_width=True,
-                column_config={"fecha": "📅", "banca": "Banco/Agencia", "telefono": "WhatsApp"}
-            )
-
-            st.divider()
-            st.subheader("🔍 Gestor de Contacto Directo")
-            
-            # Seleccionar lead para ver detalle
-            opciones = {f"{l['banca']} - {l['representante']}": l for l in leads}
-            seleccion = st.selectbox("Seleccione una solicitud para ver detalle y costos:", options=opciones.keys())
+            # --- SELECTOR DE CLIENTE ---
+            opciones = {f"{l['banca']} ({l['representante']})": l for l in leads}
+            seleccion = st.selectbox("🎯 Seleccione un Prospecto para Cotizar:", options=opciones.keys())
             
             if seleccion:
                 lead = opciones[seleccion]
+                st.divider()
                 
-                col_det, col_whatsapp = st.columns([1, 1])
+                col_info, col_planes = st.columns([1, 1.2])
                 
-                with col_det:
-                    st.markdown(f"""
-                    **Detalles del Expediente:**
-                    - 🏦 **Banca:** {lead['banca']}
-                    - 👤 **Representante:** {lead['representante']}
-                    - 📧 **Correo:** {lead['email']}
-                    - 📍 **Puntos de Venta:** {lead['puntos_venta']}
-                    - 🗺️ **Ubicación:** {lead['estado']}
-                    - 🏠 **Dirección:** {lead['direccion']}
+                with col_info:
+                    st.markdown("##### 📄 Datos del Expediente")
+                    st.info(f"""
+                    **Banco/Agencia:** {lead['banca']}  
+                    **Titular:** {lead['representante']}  
+                    **WhatsApp:** {lead['telefono']}  
+                    **Puntos Actuales:** {lead['puntos_venta']}  
+                    **Ubicación:** {lead['estado']}
                     """)
-
-                with col_whatsapp:
-                    st.markdown("**💰 Estructura de Costos Sugerida:**")
-                    # Calculamos un presupuesto rápido basado en puntos de venta
-                    costo_base = 100 # Ejemplo
-                    costo_por_punto = 10
-                    total = costo_base + (int(lead['puntos_venta']) * costo_por_punto)
                     
-                    st.code(f"""
-Plan: Suscripción Anual SaaS
-Costo Base: ${costo_base} USD
-Mantenimiento: ${costo_por_punto} USD x {lead['puntos_venta']} pts
-Total Estimado: ${total} USD
-                    """, language="text")
+                    # Botón para borrar solo este lead si ya se procesó
+                    if st.button("✅ Marcar como Procesado (Borrar)"):
+                        supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
+                        st.rerun()
 
-                    # --- LÓGICA DE WHATSAPP ---
-                    # Limpiamos el número (quitamos + o espacios)
+                with col_planes:
+                    st.markdown("##### 💰 Configurador de Planes")
+                    
+                    # --- LÓGICA DE PLANES ---
+                    plan_tipo = st.radio(
+                        "Seleccione Nivel de Suscripción:",
+                        ["Básico (SaaS)", "Profesional (SaaS + Soporte)", "Elite (Full Control)"],
+                        horizontal=True
+                    )
+                    
+                    # Definición de costos según el plan
+                    config = {
+                        "Básico (SaaS)": {"base": 150, "punto": 5, "desc": "Acceso al sistema estándar."},
+                        "Profesional (SaaS + Soporte)": {"base": 250, "punto": 8, "desc": "Prioridad en soporte + actualizaciones."},
+                        "Elite (Full Control)": {"base": 500, "punto": 12, "desc": "Multimoneda total + Consultoría VIP."}
+                    }
+                    
+                    c_base = config[plan_tipo]["base"]
+                    c_punto = config[plan_tipo]["punto"]
+                    pts = int(lead['puntos_venta'])
+                    total = c_base + (pts * c_punto)
+                    
+                    st.markdown(f"""
+                    <div style='background: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0369a1;'>
+                        <strong style='color: #0369a1;'>{plan_tipo}</strong><br>
+                        <small>{config[plan_tipo]['desc']}</small><br>
+                        <h3 style='margin: 10px 0;'>Total: ${total} USD</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # --- MENSAJE DE WHATSAPP ---
                     tel_clean = "".join(filter(str.isdigit, str(lead['telefono'])))
                     
                     mensaje_ws = (
-                        f"Hola *{lead['representante']}*, te saludamos de *Multibanca Express*. "
-                        f"Recibimos tu solicitud para la banca *{lead['banca']}*. "
-                        f"Aquí tienes la estructura de costos para tus {lead['puntos_venta']} puntos:\n\n"
-                        f"✅ Plan Anual SaaS\n"
-                        f"✅ Soporte Premium\n"
-                        f"💰 *Inversión Total: ${total} USD*\n\n"
-                        f"¿Te gustaría proceder con la activación?"
+                        f"Hola *{lead['representante']}*, un gusto saludarte. 👋\n\n"
+                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead['banca']}* "
+                        f"y hemos diseñado una propuesta técnica para tus {pts} puntos:\n\n"
+                        f"🏆 *Plan: {plan_tipo}*\n"
+                        f"🏢 Estructura: SaaS Centralizado\n"
+                        f"💰 *Inversión Anual: ${total} USD*\n\n"
+                        f"¿Te gustaría que agendemos una breve llamada para la demostración final?"
                     )
                     
-                    # Link de WhatsApp Me
-                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_ws.replace(' ', '%20')}"
+                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_ws.replace(' ', '%20').replace('\n', '%0A')}"
                     
                     st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", ws_url, use_container_width=True)
 
-            st.divider()
-            if st.button("🗑️ Vaciar Historial", type="secondary"):
-                supabase.table("suscriptores_leads").delete().neq("banca", "x").execute()
-                st.rerun()
-
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error en el gestor de planes: {e}")
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
