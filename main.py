@@ -208,34 +208,42 @@ def seccion_solicitudes():
 # with tab3: seccion_planes()
             
 def check_password():
-    """Retorna True si el usuario y contraseña son correctos."""
+    """Verifica credenciales contra la tabla admin_users en Supabase."""
     def login_form():
         st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.markdown("""
-                <div style='text-align: center; padding: 20px; background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
-                    <h2 style='color: #1e3a8a; margin-bottom: 0;'>🛡️ Panel Administrador</h2>
-                    <p style='color: #64748b;'>Ingrese sus credenciales maestros</p>
+                <div style='text-align: center; padding: 25px; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;'>
+                    <h2 style='color: #1e3a8a; margin-bottom: 5px;'>🛡️ Acceso Multi-Usuario</h2>
+                    <p style='color: #64748b; font-size: 14px;'>Identifíquese para entrar al Control Maestro</p>
                 </div>
             """, unsafe_allow_html=True)
             
-            u = st.text_input("Usuario Administrador", key="master_user", placeholder="Ej: admin")
-            p = st.text_input("Contraseña Maestra", type="password", key="master_pass", placeholder="••••••••")
+            user_in = st.text_input("Usuario", key="input_user")
+            pass_in = st.text_input("Contraseña", type="password", key="input_pass")
             
-            if st.button("ACCEDER AL CONTROL", use_container_width=True, type="primary"):
-                # Verificamos contra los secrets (debes crear MASTER_USER en Streamlit Secrets)
-                if u == st.secrets["MASTER_USER"] and p == st.secrets["MASTER_PASSWORD"]:
-                    st.session_state["password_correct"] = True
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas")
+            if st.button("INICIAR SESIÓN", use_container_width=True, type="primary"):
+                # CONSULTA A SUPABASE
+                try:
+                    res = supabase.table("admin_users").select("*").eq("usuario", user_in).eq("password_text", pass_in).execute()
+                    
+                    if res.data and len(res.data) > 0:
+                        st.session_state["password_correct"] = True
+                        st.session_state["admin_name"] = res.data[0]['nombre']
+                        st.success(f"✅ Bienvenido, {res.data[0]['nombre']}")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Usuario o contraseña incorrectos")
+                except Exception as e:
+                    st.error(f"Error de conexión: {e}")
 
     if "password_correct" not in st.session_state:
         login_form()
         return False
     return True
-
+    
     # =============================================================
 # 5. LÓGICA PRINCIPAL (FULL WIDTH + HEADER CLEAN LOGOUT)
 # =============================================================
