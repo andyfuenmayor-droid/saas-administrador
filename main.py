@@ -158,6 +158,7 @@ def seccion_solicitudes():
             
             if seleccion:
                 lead = opciones[seleccion]
+                lead_id = lead.get('id') # Extraemos el ID para asegurar el borrado
                 st.divider()
                 
                 col_info, col_planes = st.columns([1, 1.2])
@@ -172,7 +173,6 @@ def seccion_solicitudes():
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    # --- CAMPOS DE GESTIÓN COMERCIAL ---
                     descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
                     
                     metodos_pago = st.multiselect(
@@ -187,7 +187,6 @@ def seccion_solicitudes():
                     plan_sel = st.selectbox("Plan a Cotizar:", nombres_planes)
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     
-                    # Cálculos Financieros
                     pts = int(lead.get('puntos_venta', 0))
                     base = float(datos_plan.get('costo_base', 0))
                     punto = float(datos_plan.get('costo_por_punto', 0))
@@ -203,7 +202,7 @@ def seccion_solicitudes():
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # --- CONSTRUCCIÓN DEL MENSAJE POTENTE ---
+                    # --- WHATSAPP ---
                     tel_raw = str(lead.get('telefono', ''))
                     tel_clean = "".join(filter(str.isdigit, tel_raw))
                     lista_pagos = "\n".join([f"🔹 {mp}" for mp in metodos_pago])
@@ -227,15 +226,19 @@ def seccion_solicitudes():
                     import urllib.parse
                     msg_url = urllib.parse.quote(msg_base)
 
-                    st.write("")
                     st.link_button("🟢 ENVIAR PROPUESTA POR WHATSAPP", 
                                   f"https://wa.me/{tel_clean}?text={msg_url}", 
                                   use_container_width=True)
                     
                     st.write("")
-                    if st.button("🗑️ Marcar como Procesado (Eliminar)", use_container_width=True):
-                        supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
-                        st.success("Lead eliminado.")
+                    
+                    # BOTÓN DE ELIMINAR CORREGIDO
+                    if st.button("🗑️ Marcar como Procesado (Eliminar)", key=f"del_{lead_id}", use_container_width=True, type="secondary"):
+                        with st.spinner("Eliminando registro..."):
+                            # Ejecución directa y verificación
+                            supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
+                        st.success("Lead eliminado correctamente.")
+                        time.sleep(1) # Pausa breve para que veas el mensaje de éxito
                         st.rerun()
 
     except Exception as e:
