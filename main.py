@@ -208,17 +208,43 @@ def seccion_solicitudes():
 # with tab3: seccion_planes()
             
 # =============================================================
-# 5. LÓGICA PRINCIPAL
+# 5. LÓGICA PRINCIPAL (OPTIMIZADA PARA MÓVIL)
 # =============================================================
 
 if check_password():
+    # Inyectar CSS Responsivo Pro
+    st.markdown("""
+        <style>
+        /* Ajustes para pantallas pequeñas (Teléfonos) */
+        @media (max-width: 640px) {
+            .main-title { font-size: 28px !important; }
+            .stMetric { padding: 5px !important; }
+            [data-testid="stMetricValue"] { font-size: 20px !important; }
+            /* Forzar que las pestañas (tabs) sean legibles */
+            .stTabs [data-baseweb="tab"] {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                font-size: 12px !important;
+            }
+            /* Hacer que el botón de guardar ocupe el ancho total y sea fácil de tocar */
+            .stButton button {
+                width: 100% !important;
+                height: 50px !important;
+            }
+        }
+        /* Ocultar sidebar en móvil por defecto para ganar espacio */
+        [data-testid="stSidebarNav"] { padding-top: 2rem; }
+        </style>
+    """, unsafe_allow_html=True)
+
     # Barra lateral SaaS
     with st.sidebar:
         st.image("https://cdn-icons-png.flaticon.com/512/6195/6195700.png", width=50)
         st.title("ME Admin")
         st.write("---")
-        if st.button("🚪 Cerrar Sesión"):
-            del st.session_state["password_correct"]
+        if st.button("🚪 Cerrar Sesión", use_container_width=True):
+            if "password_correct" in st.session_state:
+                del st.session_state["password_correct"]
             st.rerun()
 
     # Contenido principal
@@ -227,33 +253,39 @@ if check_password():
         res_p = supabase.table("perfiles").select("*").execute()
         df_clientes = pd.DataFrame(res_p.data)
 
-        st.title("💎 Multibanca Express - Control Maestro")
+        # Título responsivo usando HTML
+        st.markdown("<h1 class='main-title' style='text-align: center;'>💎 ME - Control Maestro</h1>", unsafe_allow_html=True)
+        
+        # Las métricas en Streamlit ya son algo responsivas, pero mostrar_metricas debe usar columnas
         mostrar_metricas(df_clientes)
         
-        tab1, tab2 = st.tabs(["👥 Gestión de Clientes", "🚀 Solicitudes (Leads)"])
+        # Tabs con nombres cortos para que quepan en el teléfono
+        tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
 
         with tab1:
-            st.markdown("### Listado de Suscriptores")
+            st.markdown("### 📋 Suscriptores")
+            # En móvil, las tablas grandes se ven mejor con el contenedor de ancho total
             st.dataframe(
-                df_clientes[["email", "nombre_banca", "plan", "status", "fecha_vencimiento"]], 
+                df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
                 use_container_width=True
             )
 
-            with st.expander("✏️ Herramienta de Modificación de Licencias", expanded=True):
-                cliente_sel = st.selectbox("Buscar cliente por Email:", df_clientes["email"].tolist())
+            with st.expander("✏️ Editar Licencia", expanded=True):
+                cliente_sel = st.selectbox("Seleccionar Email:", df_clientes["email"].tolist())
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
 
-                col_a, col_b = st.columns(2)
+                # Usamos contenedores para que en móvil no se rompa el diseño
+                col_a, col_b = st.columns([1, 1])
                 with col_a:
                     st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
                     nuevo_status = st.segmented_control(
-                        "Estatus de Cuenta:", 
+                        "Estatus:", 
                         ["activo", "suspendido", "vencido"], 
                         default=datos_cliente['status']
                     )
                 with col_b:
                     fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
-                    opcion_t = st.selectbox("Extender suscripción por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
+                    opcion_t = st.selectbox("Extender por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
                     
                     nueva_f = fecha_orig
                     if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
@@ -261,20 +293,23 @@ if check_password():
                     elif opcion_t == "6 Meses": nueva_f += timedelta(days=180)
                     elif opcion_t == "1 Año": nueva_f += timedelta(days=365)
                     
-                    st.info(f"Nueva fecha: **{nueva_f.strftime('%Y-%m-%d')}**")
+                    st.info(f"Vence: **{nueva_f.strftime('%Y-%m-%d')}**")
 
-                if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary", use_container_width=True):
-                    supabase.table("perfiles").update({
-                        "status": nuevo_status,
-                        "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
-                    }).eq("email", cliente_sel).execute()
-                    st.success("✅ Base de datos actualizada con éxito.")
-                    time.sleep(1)
-                    st.rerun()
+                if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
+                    with st.spinner("Actualizando..."):
+                        supabase.table("perfiles").update({
+                            "status": nuevo_status,
+                            "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
+                        }).eq("email", cliente_sel).execute()
+                        st.success("✅ ¡Listo!")
+                        time.sleep(1)
+                        st.rerun()
 
         with tab2:
-            # AQUÍ ES DONDE SE LLAMA A LA FUNCIÓN QUE CARGA LOS LEADS
             seccion_solicitudes()
 
+        with tab3:
+            seccion_planes()
+
     except Exception as e:
-        st.error(f"🚨 Error crítico de conexión: {e}")
+        st.error(f"🚨 Error: {e}")
