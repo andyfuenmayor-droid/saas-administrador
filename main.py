@@ -81,23 +81,66 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
+# --- SECCIÓN DE GESTIÓN DE PLANES (NUEVA) ---
+def seccion_planes():
+    st.markdown("### ⚙️ Configuración Maestra de Planes")
+    
+    # 1. CARGAR O INICIALIZAR PLANES EN SESSION STATE
+    if "lista_planes" not in st.session_state:
+        st.session_state.lista_planes = [
+            {"nombre": "Básico (SaaS)", "base": 150.0, "punto": 5.0, "desc": "Acceso estándar"},
+            {"nombre": "Profesional", "base": 250.0, "punto": 8.0, "desc": "Soporte Prioritario"},
+            {"nombre": "Elite", "base": 500.0, "punto": 12.0, "desc": "Todo incluido"}
+        ]
+
+    # 2. FORMULARIO PARA CREAR/EDITAR PLANES
+    with st.expander("➕ Crear Nuevo Plan o Modificar", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        nombre = col1.text_input("Nombre del Plan")
+        base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0)
+        punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0)
+        desc = st.text_area("Breve descripción del plan")
+        
+        if st.button("💾 Guardar Plan en Memoria"):
+            if nombre:
+                # Actualizar si existe, si no agregar
+                existe = False
+                for p in st.session_state.lista_planes:
+                    if p['nombre'] == nombre:
+                        p['base'], p['punto'], p['desc'] = base, punto, desc
+                        existe = True
+                if not existe:
+                    st.session_state.lista_planes.append({"nombre": nombre, "base": base, "punto": punto, "desc": desc})
+                st.success(f"Plan '{nombre}' actualizado.")
+                st.rerun()
+
+    # 3. TABLA DE PLANES ACTUALES
+    st.markdown("#### Planes Activos")
+    df_p = pd.DataFrame(st.session_state.lista_planes)
+    st.table(df_p)
+    
+    if st.button("🗑️ Resetear a Planes por Defecto"):
+        del st.session_state.lista_planes
+        st.rerun()
+
+# --- SECCIÓN DE SOLICITUDES ACTUALIZADA ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     
-    if st.button("🔄 Sincronizar Base de Datos", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-    
+    # Verificamos si hay planes creados
+    if "lista_planes" not in st.session_state:
+        st.warning("⚠️ Primero crea los planes en la sección de Planes.")
+        return
+
     try:
         res = supabase.table("suscriptores_leads").select("*").execute()
         leads = res.data
 
         if not leads:
-            st.info("💡 No hay solicitudes nuevas en este momento.")
+            st.info("💡 No hay solicitudes nuevas.")
         else:
-            # --- SELECTOR DE CLIENTE ---
             opciones = {f"{l['banca']} ({l['representante']})": l for l in leads}
-            seleccion = st.selectbox("🎯 Seleccione un Prospecto para Cotizar:", options=opciones.keys())
+            seleccion = st.selectbox("🎯 Seleccione un Prospecto:", options=opciones.keys())
             
             if seleccion:
                 lead = opciones[seleccion]
@@ -107,70 +150,52 @@ def seccion_solicitudes():
                 
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
-                    st.info(f"""
-                    **Banco/Agencia:** {lead['banca']}  
-                    **Titular:** {lead['representante']}  
-                    **WhatsApp:** {lead['telefono']}  
-                    **Puntos Actuales:** {lead['puntos_venta']}  
-                    **Ubicación:** {lead['estado']}
-                    """)
-                    
-                    if st.button("✅ Marcar como Procesado (Borrar)"):
+                    st.info(f"**Empresa:** {lead['banca']}\n\n**Titular:** {lead['representante']}\n\n**Puntos:** {lead['puntos_venta']}")
+                    if st.button("✅ Marcar como Procesado"):
                         supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
                         st.rerun()
 
                 with col_planes:
-                    st.markdown("##### 💰 Configurador de Planes")
+                    st.markdown("##### 💰 Cotizador basado en tus Planes")
                     
-                    plan_tipo = st.radio(
-                        "Seleccione Nivel de Suscripción:",
-                        ["Básico (SaaS)", "Profesional (SaaS + Soporte)", "Elite (Full Control)"],
-                        horizontal=True
-                    )
+                    # SELECTOR BASADO EN TUS PLANES CREADOS
+                    nombres_planes = [p['nombre'] for p in st.session_state.lista_planes]
+                    plan_sel = st.selectbox("Usar Plan:", nombres_planes)
                     
-                    config = {
-                        "Básico (SaaS)": {"base": 150, "punto": 5, "desc": "Acceso al sistema estándar."},
-                        "Profesional (SaaS + Soporte)": {"base": 250, "punto": 8, "desc": "Prioridad en soporte + actualizaciones."},
-                        "Elite (Full Control)": {"base": 500, "punto": 12, "desc": "Multimoneda total + Consultoría VIP."}
-                    }
+                    # Buscar datos del plan seleccionado
+                    datos_plan = next(item for item in st.session_state.lista_planes if item["nombre"] == plan_sel)
                     
-                    c_base = config[plan_tipo]["base"]
-                    c_punto = config[plan_tipo]["punto"]
                     pts = int(lead['puntos_venta'])
-                    total = c_base + (pts * c_punto)
+                    total = datos_plan['base'] + (pts * datos_plan['punto'])
                     
                     st.markdown(f"""
                     <div style='background: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0369a1;'>
-                        <strong style='color: #0369a1;'>{plan_tipo}</strong><br>
-                        <small>{config[plan_tipo]['desc']}</small><br>
+                        <strong style='color: #0369a1;'>{plan_sel}</strong><br>
                         <h3 style='margin: 10px 0;'>Total: ${total} USD</h3>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # --- LÓGICA DE WHATSAPP (CORREGIDA) ---
+                    # --- WHATSAPP ---
                     tel_clean = "".join(filter(str.isdigit, str(lead['telefono'])))
-                    
-                    # 1. Creamos el mensaje base
-                    mensaje_base = (
-                        f"Hola *{lead['representante']}*, un gusto saludarte. 👋\n\n"
-                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead['banca']}* "
-                        f"y hemos diseñado una propuesta técnica para tus {pts} puntos:\n\n"
-                        f"🏆 *Plan: {plan_tipo}*\n"
-                        f"🏢 Estructura: SaaS Centralizado\n"
+                    msg_base = (
+                        f"Hola *{lead['representante']}*. 👋\n"
+                        f"Recibimos tu solicitud para *{lead['banca']}*.\n"
+                        f"Propuesta para tus {pts} puntos:\n\n"
+                        f"🏆 *Plan: {plan_sel}*\n"
                         f"💰 *Inversión Anual: ${total} USD*\n\n"
-                        f"¿Te gustaría que agendemos una breve llamada para la demostración final?"
+                        f"¿Te interesa activar el servicio?"
                     )
-                    
-                    # 2. PROCESAMOS LOS REEMPLAZOS FUERA DE LA F-STRING
-                    mensaje_url = mensaje_base.replace(' ', '%20').replace('\n', '%0A')
-                    
-                    # 3. Construimos la URL final limpia
-                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_url}"
-                    
-                    st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", ws_url, use_container_width=True)
+                    msg_url = msg_base.replace(' ', '%20').replace('\n', '%0A')
+                    st.link_button("🟢 ENVIAR POR WHATSAPP", f"https://wa.me/{tel_clean}?text={msg_url}", use_container_width=True)
 
     except Exception as e:
-        st.error(f"Error en el gestor de planes: {e}")
+        st.error(f"Error: {e}")
+
+# --- EN TU BLOQUE PRINCIPAL (Tabs) ---
+# tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Solicitudes", "⚙️ Config. Planes"])
+# with tab1: ...
+# with tab2: seccion_solicitudes()
+# with tab3: seccion_planes()
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
