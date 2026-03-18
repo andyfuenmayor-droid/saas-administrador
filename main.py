@@ -133,31 +133,27 @@ def seccion_planes():
     except Exception as e:
         st.error(f"Error al conectar con la tabla config_planes: {e}")
         
-# --- SECCIÓN DE SOLICITUDES ACTUALIZADA Y REPARADA ---
+# --- SECCIÓN DE SOLICITUDES ACTUALIZADA CON PITCH DE VENTAS ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     
     try:
-        # 1. CARGA DE PLANES (Prioridad: Base de Datos para evitar bloqueos)
+        # 1. CARGA DE PLANES (Desde DB para asegurar persistencia)
         res_planes = supabase.table("config_planes").select("*").execute()
         planes_disponibles = res_planes.data
 
         if not planes_disponibles:
-            st.warning("⚠️ No se encontraron planes en la base de datos. Ve a la pestaña 'Planes' para configurarlos.")
+            st.warning("⚠️ No se encontraron planes en la base de datos. Configúralos en la pestaña 'Planes'.")
             return
 
-        # 2. CARGA DE LEADS (Usa los mismos secrets de conexión)
+        # 2. CARGA DE LEADS
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
 
         if not leads:
             st.info("💡 No hay solicitudes nuevas de prospectos en este momento.")
-            # Botón de depuración por si sabes que hay datos pero no se ven
-            if st.checkbox("Verificar conexión técnica"):
-                st.write("Conexión: OK")
-                st.write("Tabla: suscriptores_leads")
         else:
-            # Diccionario para el selector
+            # Diccionario para el selector de prospectos
             opciones = {
                 f"{l.get('banca', 'N/A')} ({l.get('representante', 'N/A')})": l 
                 for l in leads
@@ -182,22 +178,22 @@ def seccion_solicitudes():
                         </div>
                     """, unsafe_allow_html=True)
                     
+                    st.write("")
                     if st.button("✅ Marcar como Procesado (Eliminar)", use_container_width=True):
                         supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
-                        st.success("Lead eliminado.")
+                        st.success("Lead procesado y eliminado.")
                         st.rerun()
 
                 with col_planes:
                     st.markdown("##### 💰 Cotizador Dinámico")
                     
-                    # Nombres de planes desde la DB
                     nombres_planes = [p['nombre'] for p in planes_disponibles]
                     plan_sel = st.selectbox("Plan a Cotizar:", nombres_planes)
                     
-                    # Obtener datos del plan elegido
+                    # Obtener datos técnicos del plan elegido
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     
-                    # Cálculos con manejo de errores numéricos
+                    # Cálculos financieros
                     pts = int(lead.get('puntos_venta', 0))
                     base = float(datos_plan.get('costo_base', 0))
                     punto = float(datos_plan.get('costo_por_punto', 0))
@@ -205,34 +201,41 @@ def seccion_solicitudes():
                     
                     st.markdown(f"""
                         <div style='background: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0369a1;'>
-                            <strong style='font-size: 18px;'>{plan_sel}</strong><br>
+                            <strong style='font-size: 18px;'>Propuesta: {plan_sel}</strong><br>
                             <h2 style='margin: 10px 0; color: #0369a1;'>${total:,.2f} USD</h2>
-                            <small>Base: ${base} + ({pts} pts x ${punto})</small>
+                            <small>Suscripción Anual SaaS</small>
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # --- WHATSAPP ---
+                    # --- WHATSAPP CON PITCH DE VENTAS POTENTE ---
                     tel_raw = str(lead.get('telefono', ''))
                     tel_clean = "".join(filter(str.isdigit, tel_raw))
-                    
+
                     msg_base = (
-                        f"Hola *{lead.get('representante', '')}*! 👋\n\n"
-                        f"Recibimos tu solicitud para *{lead.get('banca', '')}*.\n\n"
-                        f"Esta es nuestra propuesta técnica:\n"
-                        f"🏆 *Plan: {plan_sel}*\n"
-                        f"💰 *Inversión Anual: ${total:,.2f} USD*\n\n"
-                        f"¿Te gustaría activar el servicio? 😊"
+                        f"Hola *{lead.get('representante', 'Amigo')}*! 👋\n\n"
+                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead.get('banca', 'tu Agencia')}* "
+                        f"y hemos diseñado esta propuesta exclusiva para tus {pts} puntos:\n\n"
+                        f"🏆 *PLAN: {plan_sel.upper()}*\n"
+                        f"💰 *INVERSIÓN ANUAL: ${total:,.2f} USD*\n\n"
+                        f"🚀 *¿QUÉ INCLUYE TU SUSCRIPCIÓN ANUAL?*\n"
+                        f"✅ *Control Total:* Monitoreo de ventas y caja en tiempo real 24/7.\n"
+                        f"✅ *Seguridad:* Resguardamos tus datos con encriptación grado bancario.\n"
+                        f"✅ *Autonomía:* Gestiona roles, usuarios y permisos desde tu celular.\n"
+                        f"✅ *Soporte VIP:* Atención prioritaria y actualizaciones constantes.\n\n"
+                        f"Nuestro SaaS está diseñado para eliminar errores humanos y maximizar la rentabilidad de tu agencia desde el primer día. 📈\n\n"
+                        f"¿Te gustaría que agendemos la activación hoy mismo? 😊"
                     )
-                    
+
                     import urllib.parse
                     msg_url = urllib.parse.quote(msg_base)
-                    
-                    st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", 
+
+                    st.write("")
+                    st.link_button("🟢 ENVIAR PROPUESTA POR WHATSAPP", 
                                   f"https://wa.me/{tel_clean}?text={msg_url}", 
                                   use_container_width=True)
 
     except Exception as e:
-        st.error(f"🚨 Error al cargar Leads: {e}")
+        st.error(f"🚨 Error al gestionar Leads: {e}")
   
 
 # --- EN TU BLOQUE PRINCIPAL (Tabs) ---
