@@ -137,30 +137,29 @@ def seccion_planes():
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     
-    # 1. VALIDACIÓN DE PLANES (Corregida para ser más flexible)
-    # Verificamos tanto en session_state como si la lista tiene contenido
-    planes_disponibles = st.session_state.get("lista_planes", [])
-    
-    if not planes_disponibles:
-        st.warning("⚠️ No se encontraron planes configurados. Ve a la pestaña 'Configuración' o 'Planes' para crearlos primero.")
-        # Agregamos un botón de acceso rápido para mejorar la navegación
-        if st.button("Ir a Configurar Planes"):
-            # Aquí podrías forzar el cambio de tab si manejas el índice en session_state
-            st.info("Por favor, selecciona la pestaña ⚙️ Planes arriba.")
-        return
-
     try:
-        # 2. CARGA DE DATOS DESDE SUPABASE
-        res = supabase.table("suscriptores_leads").select("*").execute()
-        leads = res.data
+        # 1. CARGA DE PLANES (Prioridad: Base de Datos para evitar bloqueos)
+        res_planes = supabase.table("config_planes").select("*").execute()
+        planes_disponibles = res_planes.data
+
+        if not planes_disponibles:
+            st.warning("⚠️ No se encontraron planes en la base de datos. Ve a la pestaña 'Planes' para configurarlos.")
+            return
+
+        # 2. CARGA DE LEADS (Usa los mismos secrets de conexión)
+        res_leads = supabase.table("suscriptores_leads").select("*").execute()
+        leads = res_leads.data
 
         if not leads:
             st.info("💡 No hay solicitudes nuevas de prospectos en este momento.")
+            # Botón de depuración por si sabes que hay datos pero no se ven
+            if st.checkbox("Verificar conexión técnica"):
+                st.write("Conexión: OK")
+                st.write("Tabla: suscriptores_leads")
         else:
-            # Creamos el diccionario para el selector
-            # Usamos .get() para evitar errores si alguna columna falta
+            # Diccionario para el selector
             opciones = {
-                f"{l.get('banca', 'Sin Nombre')} ({l.get('representante', 'Sin Titular')})": l 
+                f"{l.get('banca', 'N/A')} ({l.get('representante', 'N/A')})": l 
                 for l in leads
             }
             
@@ -174,7 +173,6 @@ def seccion_solicitudes():
                 
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
-                    # Diseño de tarjeta para el lead
                     st.markdown(f"""
                         <div style='background: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;'>
                             <strong>Empresa:</strong> {lead.get('banca', 'N/A')}<br>
@@ -184,59 +182,51 @@ def seccion_solicitudes():
                         </div>
                     """, unsafe_allow_html=True)
                     
-                    st.write("") # Espaciador
                     if st.button("✅ Marcar como Procesado (Eliminar)", use_container_width=True):
                         supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
-                        st.success("Lead procesado correctamente.")
+                        st.success("Lead eliminado.")
                         st.rerun()
 
                 with col_planes:
-                    st.markdown("##### 💰 Cotizador Inteligente")
+                    st.markdown("##### 💰 Cotizador Dinámico")
                     
-                    # SELECTOR DINÁMICO DE TUS PLANES
+                    # Nombres de planes desde la DB
                     nombres_planes = [p['nombre'] for p in planes_disponibles]
-                    plan_sel = st.selectbox("Seleccionar Propuesta:", nombres_planes)
+                    plan_sel = st.selectbox("Plan a Cotizar:", nombres_planes)
                     
-                    # Buscar datos del plan seleccionado
-                    datos_plan = next(item for item in planes_disponibles if item["nombre"] == plan_sel)
+                    # Obtener datos del plan elegido
+                    datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     
-                    # Cálculo seguro de total
-                    try:
-                        pts = int(lead.get('puntos_venta', 0))
-                        costo_base = float(datos_plan.get('base', 0))
-                        costo_punto = float(datos_plan.get('punto', 0))
-                        total = costo_base + (pts * costo_punto)
-                    except:
-                        total = 0
-                        st.error("Error en el formato de precios de los planes.")
+                    # Cálculos con manejo de errores numéricos
+                    pts = int(lead.get('puntos_venta', 0))
+                    base = float(datos_plan.get('costo_base', 0))
+                    punto = float(datos_plan.get('costo_por_punto', 0))
+                    total = base + (pts * punto)
                     
                     st.markdown(f"""
                         <div style='background: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0369a1;'>
-                            <small style='color: #0369a1;'>Propuesta Comercial</small><br>
                             <strong style='font-size: 18px;'>{plan_sel}</strong><br>
                             <h2 style='margin: 10px 0; color: #0369a1;'>${total:,.2f} USD</h2>
-                            <small>Base: ${costo_base} + ({pts} pts x ${costo_punto})</small>
+                            <small>Base: ${base} + ({pts} pts x ${punto})</small>
                         </div>
                     """, unsafe_allow_html=True)
 
-                    # --- WHATSAPP OPTIMIZADO ---
+                    # --- WHATSAPP ---
                     tel_raw = str(lead.get('telefono', ''))
                     tel_clean = "".join(filter(str.isdigit, tel_raw))
                     
-                    # Mensaje con mejor formato
                     msg_base = (
                         f"Hola *{lead.get('representante', '')}*! 👋\n\n"
-                        f"Soy de *Control Maestro*. Recibimos tu solicitud para *{lead.get('banca', '')}*.\n\n"
-                        f"Basado en tus {pts} puntos, esta es nuestra propuesta:\n"
+                        f"Recibimos tu solicitud para *{lead.get('banca', '')}*.\n\n"
+                        f"Esta es nuestra propuesta técnica:\n"
                         f"🏆 *Plan: {plan_sel}*\n"
-                        f"💰 *Inversión Total: ${total:,.2f} USD*\n\n"
-                        f"¿Te gustaría que agendemos la activación? 😊"
+                        f"💰 *Inversión Anual: ${total:,.2f} USD*\n\n"
+                        f"¿Te gustaría activar el servicio? 😊"
                     )
                     
                     import urllib.parse
                     msg_url = urllib.parse.quote(msg_base)
                     
-                    st.write("")
                     st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", 
                                   f"https://wa.me/{tel_clean}?text={msg_url}", 
                                   use_container_width=True)
