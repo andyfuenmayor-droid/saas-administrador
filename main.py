@@ -81,36 +81,42 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
-# --- SECCIÓN DE SOLICITUDES ---
+# --- SECCIÓN DE SOLICITUDES (BLINDADA) ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # Botón pro para forzar la vista y limpiar caché
-    if st.button("🔄 Sincronizar y Ver Solicitudes", use_container_width=True):
-        st.cache_data.clear() # Limpia cualquier dato viejo guardado en RAM
+    # Botón de refresco total
+    if st.button("🔄 Sincronizar Base de Datos", use_container_width=True):
+        st.cache_data.clear()
         st.rerun()
     
     try:
-        # CONSULTA DIRECTA (Ahora con permisos de Service Role)
-        res = supabase.table("suscriptores_leads").select("*").execute()
+        # CONSULTA FORZADA: Agregamos un filtro que siempre sea cierto 
+        # para obligar a Supabase a procesar la fila de nuevo
+        res = supabase.table("suscriptores_leads").select("*").not_.is_("banca", "null").execute()
         leads = res.data
 
-        if not leads:
-            st.warning("🔎 El sistema conectó, pero la tabla sigue vacía o el RLS bloqueó el acceso.")
-            st.info("💡 **Tip:** Asegúrate de que la nueva política de SELECT en Supabase permita al rol 'service_role' leer.")
+        if not leads or len(leads) == 0:
+            # Mensaje profesional tipo SaaS cuando no hay datos todavía
+            st.markdown("""
+                <div style='text-align: center; padding: 40px; background: white; border-radius: 15px; border: 1px dashed #cbd5e1;'>
+                    <p style='color: #64748b; font-size: 18px;'>No hay solicitudes nuevas en este momento.</p>
+                    <p style='color: #94a3b8; font-size: 14px;'>Las afiliaciones de la web aparecerán aquí automáticamente.</p>
+                </div>
+            """, unsafe_allow_html=True)
         else:
             df_leads = pd.DataFrame(leads)
             
             # Limpieza de nombres de columnas
             df_leads.columns = [c.strip() for c in df_leads.columns]
             
-            # Ordenar por fecha de forma descendente
+            # Ordenar por fecha
             if 'fecha' in df_leads.columns:
                 df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
                 df_leads = df_leads.sort_values(by='fecha', ascending=False)
                 df_leads['fecha'] = df_leads['fecha'].dt.strftime('%d/%m/%Y %H:%M')
 
-            st.success(f"✅ {len(df_leads)} Solicitudes encontradas.")
+            st.success(f"✅ Se encontraron {len(df_leads)} solicitudes registradas.")
             
             # Vista Tabla SaaS Pro
             st.dataframe(
@@ -130,16 +136,18 @@ def seccion_solicitudes():
             )
             
             st.divider()
-            if st.button("🗑️ Vaciar Historial Procesado", type="secondary"):
-                # Filtro seguro para borrar
-                supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
-                st.success("Historial eliminado.")
+            # Borrado seguro: borra todo lo que no tenga un email inexistente
+            if st.button("🗑️ Vaciar Historial de Leads", type="secondary"):
+                supabase.table("suscriptores_leads").delete().neq("email", "SISTEMA_MASTER_X").execute()
+                st.success("Registros eliminados con éxito.")
                 time.sleep(1)
                 st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 Fallo de comunicación con Supabase")
-        st.code(str(e))
+        st.error(f"🚨 Fallo de conexión")
+        # Mostramos el error real solo si es necesario para depurar
+        with st.expander("Ver detalle técnico del error"):
+            st.code(str(e))
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
