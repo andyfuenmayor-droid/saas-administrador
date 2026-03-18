@@ -208,32 +208,62 @@ def seccion_solicitudes():
 # with tab3: seccion_planes()
             
 # =============================================================
-# 5. LÓGICA PRINCIPAL (OPTIMIZADA PARA MÓVIL)
+# 5. LÓGICA PRINCIPAL (RESPONSIVE PRO)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS Responsivo Pro
+    # Inyectar CSS Dinámico para corregir el layout en móviles
     st.markdown("""
         <style>
-        /* Ajustes para pantallas pequeñas (Teléfonos) */
+        /* Ajustes Globales para móviles */
         @media (max-width: 640px) {
-            .main-title { font-size: 28px !important; }
-            .stMetric { padding: 5px !important; }
-            [data-testid="stMetricValue"] { font-size: 20px !important; }
-            /* Forzar que las pestañas (tabs) sean legibles */
-            .stTabs [data-baseweb="tab"] {
-                padding-left: 10px !important;
-                padding-right: 10px !important;
-                font-size: 12px !important;
-            }
-            /* Hacer que el botón de guardar ocupe el ancho total y sea fácil de tocar */
-            .stButton button {
+            /* Forzar que las columnas de Streamlit se apilen verticalmente */
+            [data-testid="column"] {
                 width: 100% !important;
+                flex: 1 1 100% !important;
+                min-width: 100% !important;
+                margin-bottom: 1rem !important;
+            }
+            
+            /* Ajustar el título para que no se corte */
+            .main-title { 
+                font-size: 24px !important; 
+                line-height: 1.2 !important;
+                padding: 10px 0 !important;
+            }
+
+            /* Hacer las métricas más compactas pero legibles */
+            [data-testid="stMetric"] {
+                display: block !important;
+                width: 100% !important;
+                margin-bottom: 10px !important;
+            }
+
+            /* Tabs: scroll horizontal si no caben */
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 5px !important;
+            }
+            .stTabs [data-baseweb="tab"] {
+                font-size: 14px !important;
+                padding: 10px !important;
+            }
+
+            /* Inputs y botones más grandes para dedos */
+            .stButton button, .stDownloadButton button {
+                width: 100% !important;
+                height: 55px !important;
+                font-size: 18px !important;
+            }
+            
+            input {
                 height: 50px !important;
             }
         }
-        /* Ocultar sidebar en móvil por defecto para ganar espacio */
-        [data-testid="stSidebarNav"] { padding-top: 2rem; }
+        
+        /* Limpiar espacios innecesarios en la parte superior */
+        .block-container {
+            padding-top: 1rem !important;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -253,18 +283,18 @@ if check_password():
         res_p = supabase.table("perfiles").select("*").execute()
         df_clientes = pd.DataFrame(res_p.data)
 
-        # Título responsivo usando HTML
-        st.markdown("<h1 class='main-title' style='text-align: center;'>💎 ME - Control Maestro</h1>", unsafe_allow_html=True)
+        # Título centrado y responsivo
+        st.markdown("<h1 class='main-title' style='text-align: center;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
         
-        # Las métricas en Streamlit ya son algo responsivas, pero mostrar_metricas debe usar columnas
+        # En móvil, las métricas se apilarán gracias al CSS de arriba
         mostrar_metricas(df_clientes)
         
-        # Tabs con nombres cortos para que quepan en el teléfono
+        # Tabs optimizados
         tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
 
         with tab1:
             st.markdown("### 📋 Suscriptores")
-            # En móvil, las tablas grandes se ven mejor con el contenedor de ancho total
+            # Permitir scroll horizontal en la tabla para no romper el diseño
             st.dataframe(
                 df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
                 use_container_width=True
@@ -274,8 +304,8 @@ if check_password():
                 cliente_sel = st.selectbox("Seleccionar Email:", df_clientes["email"].tolist())
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
 
-                # Usamos contenedores para que en móvil no se rompa el diseño
-                col_a, col_b = st.columns([1, 1])
+                # Estas columnas se verán una al lado de otra en PC, pero una sobre otra en MÓVIL
+                col_a, col_b = st.columns(2)
                 with col_a:
                     st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
                     nuevo_status = st.segmented_control(
@@ -301,7 +331,7 @@ if check_password():
                             "status": nuevo_status,
                             "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
                         }).eq("email", cliente_sel).execute()
-                        st.success("✅ ¡Listo!")
+                        st.success("✅ ¡Licencia actualizada!")
                         time.sleep(1)
                         st.rerun()
 
