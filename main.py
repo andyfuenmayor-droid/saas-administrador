@@ -110,3 +110,35 @@ if check_password():
         if st.button("🚪 Cerrar Sesión Admin"):
             del st.session_state["password_correct"]
             st.rerun()
+            
+def seccion_solicitudes():
+    st.subheader("📩 Gestión de Solicitudes (Leads)")
+    
+    try:
+        # Consultamos la tabla de leads
+        res = supabase.table("suscriptores_leads").select("*").order("fecha", desc=True).execute()
+        leads = res.data
+
+        if not leads:
+            st.info("💡 No hay solicitudes pendientes por ahora.")
+        else:
+            # Convertimos a DataFrame para una vista limpia
+            df_leads = pd.DataFrame(leads)
+            
+            # Reordenar columnas para que se vea profesional
+            columnas_orden = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado"]
+            # Filtrar solo las que existen por si acaso
+            df_leads = df_leads[[col for col in columnas_orden if col in df_leads.columns]]
+
+            # Mostrar tabla interactiva
+            st.dataframe(df_leads, use_container_width=True)
+
+            # Botón para limpiar leads procesados (opcional)
+            if st.button("Limpiar Historial de Solicitudes"):
+                if st.confirm("¿Seguro que desea borrar todos los leads?"):
+                    supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
+                    st.rerun()
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar leads: {str(e)}")
+        st.warning("Verifica que la política SELECT de la tabla tenga acceso para tu usuario.")
