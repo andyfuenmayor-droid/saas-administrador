@@ -31,8 +31,8 @@ st.markdown("""
 @st.cache_resource
 def init_connection():
     url = st.secrets["SUPABASE_URL"]
-    # USAREMOS LA SERVICE_ROLE_KEY PARA EL ADMIN (Debes agregarla a tus secrets)
-    # Esta llave se salta el RLS de forma segura solo para el administrador
+    # Intentamos usar la Service Key para saltar el RLS del admin. 
+    # Si no existe en secrets, usa la key normal.
     key = st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
     return create_client(url, key)
 
@@ -81,46 +81,32 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
-# --- SECCIÓN DE SOLICITUDES (BLINDADA) ---
+# --- 2. SECCIÓN DE SOLICITUDES (BLINDADA) ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # Botón de refresco total con limpieza de caché
+    # Botón de refresco total
     if st.button("🔄 Forzar Sincronización Real", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     
     try:
-        # CONSULTA AGRESIVA: Traemos todo sin filtros para probar conexión
+        # CONSULTA DIRECTA SIN FILTROS
         res = supabase.table("suscriptores_leads").select("*").execute()
         leads = res.data
 
-        # DIAGNÓSTICO PARA TI (Solo visible si hay un error oculto)
-        if leads is None:
-            st.error("🚨 Supabase respondió con 'None'. Esto suele ser un error de la API o URL incorrecta.")
-            return
-
-        if len(leads) == 0:
-            # Mensaje tipo SaaS cuando no hay datos
+        if not leads or len(leads) == 0:
             st.markdown("""
                 <div style='text-align: center; padding: 40px; background: white; border-radius: 15px; border: 1px dashed #cbd5e1;'>
                     <p style='color: #64748b; font-size: 18px;'>No hay solicitudes nuevas en este momento.</p>
-                    <p style='color: #94a3b8; font-size: 14px;'>Si ya enviaste una, revisa las políticas de SELECT en Supabase.</p>
+                    <p style='color: #94a3b8; font-size: 14px;'>Si ya enviaste una, verifica que estás usando la <b>Service Role Key</b> en los secrets.</p>
                 </div>
             """, unsafe_allow_html=True)
-            
-            # Mini debug para el programador
-            with st.expander("🛠️ Debug de conexión"):
-                st.write("Conexión: OK")
-                st.write("Tabla: suscriptores_leads")
-                st.write("Filas recibidas: 0")
         else:
             df_leads = pd.DataFrame(leads)
             
-            # Limpieza de nombres de columnas
+            # Limpieza y ordenamiento
             df_leads.columns = [c.strip() for c in df_leads.columns]
-            
-            # Reordenar y formatear fecha
             if 'fecha' in df_leads.columns:
                 df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
                 df_leads = df_leads.sort_values(by='fecha', ascending=False)
@@ -139,16 +125,14 @@ def seccion_solicitudes():
                     "representante": "👤 Titular",
                     "email": "📧 Correo",
                     "telefono": "📲 WhatsApp",
-                    "puntos_venta": "📍 Puntos",
-                    "estado": "🗺️ Estado",
-                    "direccion": "🏠 Dirección"
+                    "puntos_venta": "📍 Puntos"
                 }
             )
             
             st.divider()
             if st.button("🗑️ Vaciar Historial de Leads", type="secondary"):
-                # Borrado seguro: borra todo lo que no coincida con un ID inexistente
-                supabase.table("suscriptores_leads").delete().neq("banca", "DUMMY_BORRADO").execute()
+                # Borrado seguro
+                supabase.table("suscriptores_leads").delete().neq("banca", "BORRADO_MAESTRO").execute()
                 st.success("Registros eliminados.")
                 st.rerun()
 
