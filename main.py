@@ -115,7 +115,6 @@ def seccion_solicitudes():
                     **Ubicación:** {lead['estado']}
                     """)
                     
-                    # Botón para borrar solo este lead si ya se procesó
                     if st.button("✅ Marcar como Procesado (Borrar)"):
                         supabase.table("suscriptores_leads").delete().eq("id", lead['id']).execute()
                         st.rerun()
@@ -123,14 +122,12 @@ def seccion_solicitudes():
                 with col_planes:
                     st.markdown("##### 💰 Configurador de Planes")
                     
-                    # --- LÓGICA DE PLANES ---
                     plan_tipo = st.radio(
                         "Seleccione Nivel de Suscripción:",
                         ["Básico (SaaS)", "Profesional (SaaS + Soporte)", "Elite (Full Control)"],
                         horizontal=True
                     )
                     
-                    # Definición de costos según el plan
                     config = {
                         "Básico (SaaS)": {"base": 150, "punto": 5, "desc": "Acceso al sistema estándar."},
                         "Profesional (SaaS + Soporte)": {"base": 250, "punto": 8, "desc": "Prioridad en soporte + actualizaciones."},
@@ -150,10 +147,11 @@ def seccion_solicitudes():
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # --- MENSAJE DE WHATSAPP ---
+                    # --- LÓGICA DE WHATSAPP (CORREGIDA) ---
                     tel_clean = "".join(filter(str.isdigit, str(lead['telefono'])))
                     
-                    mensaje_ws = (
+                    # 1. Creamos el mensaje base
+                    mensaje_base = (
                         f"Hola *{lead['representante']}*, un gusto saludarte. 👋\n\n"
                         f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead['banca']}* "
                         f"y hemos diseñado una propuesta técnica para tus {pts} puntos:\n\n"
@@ -163,7 +161,11 @@ def seccion_solicitudes():
                         f"¿Te gustaría que agendemos una breve llamada para la demostración final?"
                     )
                     
-                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_ws.replace(' ', '%20').replace('\n', '%0A')}"
+                    # 2. PROCESAMOS LOS REEMPLAZOS FUERA DE LA F-STRING
+                    mensaje_url = mensaje_base.replace(' ', '%20').replace('\n', '%0A')
+                    
+                    # 3. Construimos la URL final limpia
+                    ws_url = f"https://wa.me/{tel_clean}?text={mensaje_url}"
                     
                     st.link_button("🟢 ENVIAR COTIZACIÓN POR WHATSAPP", ws_url, use_container_width=True)
 
