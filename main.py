@@ -208,25 +208,18 @@ def seccion_solicitudes():
 # with tab3: seccion_planes()
             
 # =============================================================
-# 5. LÓGICA PRINCIPAL (FULL WIDTH + LOGOUT + BIOMETRÍA)
+# 5. LÓGICA PRINCIPAL (FULL WIDTH + HEADER LOGOUT & ENTRAR)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS y JS para Biometría y UI Responsiva
+    # Inyectar CSS para ocultar sidebar y mejorar UI Responsiva
     st.markdown("""
         <style>
-        /* Ocultar sidebar */
+        /* Ocultar sidebar por completo */
         [data-testid="stSidebar"], [data-testid="stSidebarNav"] { display: none !important; }
         
         /* Ajustar contenedor principal */
         .block-container { padding-top: 1rem !important; max-width: 95% !important; }
-
-        /* Botón estilo FaceID */
-        .bio-btn {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-            color: white; padding: 10px; border-radius: 10px; text-align: center;
-            cursor: pointer; font-weight: bold; margin-bottom: 10px;
-        }
 
         @media (max-width: 640px) {
             .main-title { font-size: 20px !important; }
@@ -234,39 +227,22 @@ if check_password():
             .stButton button { height: 50px !important; }
         }
         </style>
-
-        <script>
-        async function authBiometric() {
-            if (window.PublicKeyCredential) {
-                try {
-                    // Esto activa el prompt nativo de FaceID/TouchID del teléfono
-                    const credential = await navigator.credentials.get({
-                        publicKey: { challenge: new Uint8Array([1,2,3,4]), timeout: 60000 }
-                    });
-                    console.log("Autenticación exitosa");
-                } catch (e) {
-                    console.log("El usuario canceló o no hay biometría configurada");
-                }
-            } else {
-                alert("Tu navegador no soporta FaceID/WebAuthn");
-            }
-        }
-        </script>
     """, unsafe_allow_html=True)
 
-    # --- HEADER CON LOGOUT Y FACEID ---
-    col_head_title, col_head_bio, col_head_logout = st.columns([3, 1.2, 0.8])
+    # --- HEADER CON TÍTULO, ENTRAR Y SALIR ---
+    # Ajustamos las columnas para un diseño equilibrado en el encabezado
+    col_head_title, col_head_entrar, col_head_logout = st.columns([3, 1, 1])
     
     with col_head_title:
         st.markdown("<h1 class='main-title' style='margin:0;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
     
-    with col_head_bio:
-        # Botón visual que simula la activación de FaceID
-        if st.button("🆔 FaceID/TouchID", use_container_width=True):
-            st.toast("Iniciando sensor biométrico...", icon="👤")
-            # Nota: WebAuthn requiere HTTPS para funcionar en producción
+    with col_head_entrar:
+        # Botón de Entrar (puedes vincularlo a refrescar o ir al inicio)
+        if st.button("🚀 Entrar", use_container_width=True):
+            st.rerun()
     
     with col_head_logout:
+        # Botón de Salir
         if st.button("🚪 Salir", use_container_width=True):
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
