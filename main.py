@@ -81,48 +81,58 @@ def mostrar_metricas(df):
     with c4:
         st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
-# --- SECCIÓN DE GESTIÓN DE PLANES (NUEVA) ---
 def seccion_planes():
-    st.markdown("### ⚙️ Configuración Maestra de Planes")
+    st.markdown("### ⚙️ Configuración Maestra de Planes (Base de Datos)")
     
-    # 1. CARGAR O INICIALIZAR PLANES EN SESSION STATE
-    if "lista_planes" not in st.session_state:
-        st.session_state.lista_planes = [
-            {"nombre": "Básico (SaaS)", "base": 150.0, "punto": 5.0, "desc": "Acceso estándar"},
-            {"nombre": "Profesional", "base": 250.0, "punto": 8.0, "desc": "Soporte Prioritario"},
-            {"nombre": "Elite", "base": 500.0, "punto": 12.0, "desc": "Todo incluido"}
-        ]
-
-    # 2. FORMULARIO PARA CREAR/EDITAR PLANES
-    with st.expander("➕ Crear Nuevo Plan o Modificar", expanded=True):
-        col1, col2, col3 = st.columns(3)
-        nombre = col1.text_input("Nombre del Plan")
-        base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0)
-        punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0)
-        desc = st.text_area("Breve descripción del plan")
+    # 1. CARGAR PLANES DESDE SUPABASE
+    try:
+        res = supabase.table("config_planes").select("*").order("costo_base").execute()
+        planes_db = res.data
         
-        if st.button("💾 Guardar Plan en Memoria"):
-            if nombre:
-                # Actualizar si existe, si no agregar
-                existe = False
-                for p in st.session_state.lista_planes:
-                    if p['nombre'] == nombre:
-                        p['base'], p['punto'], p['desc'] = base, punto, desc
-                        existe = True
-                if not existe:
-                    st.session_state.lista_planes.append({"nombre": nombre, "base": base, "punto": punto, "desc": desc})
-                st.success(f"Plan '{nombre}' actualizado.")
-                st.rerun()
+        # 2. FORMULARIO PARA CREAR/EDITAR
+        with st.expander("➕ Crear o Editar Plan en la Nube", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            nombre = col1.text_input("Nombre del Plan")
+            base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0)
+            punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0)
+            desc = st.text_area("Descripción del servicio")
+            
+            if st.button("💾 Guardar en Base de Datos", use_container_width=True):
+                if nombre:
+                    data_plan = {
+                        "nombre": nombre,
+                        "costo_base": base,
+                        "costo_por_punto": punto,
+                        "descripcion": desc
+                    }
+                    # Upsert: Inserta si no existe, actualiza si el nombre coincide
+                    supabase.table("config_planes").upsert(data_plan, on_conflict="nombre").execute()
+                    st.success(f"¡Plan '{nombre}' sincronizado!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("El nombre del plan es obligatorio.")
 
-    # 3. TABLA DE PLANES ACTUALES
-    st.markdown("#### Planes Activos")
-    df_p = pd.DataFrame(st.session_state.lista_planes)
-    st.table(df_p)
-    
-    if st.button("🗑️ Resetear a Planes por Defecto"):
-        del st.session_state.lista_planes
-        st.rerun()
+        # 3. LISTADO DE PLANES
+        if planes_db:
+            st.markdown("#### Planes Activos en Sistema")
+            df_p = pd.DataFrame(planes_db)
+            # Reordenar para vista pro
+            df_p = df_p[["nombre", "costo_base", "costo_por_punto", "descripcion"]]
+            st.dataframe(df_p, use_container_width=True)
+            
+            # Opción para eliminar
+            with st.expander("🗑️ Zona de Peligro"):
+                plan_a_borrar = st.selectbox("Seleccione plan a eliminar:", [p['nombre'] for p in planes_db])
+                if st.button(f"Eliminar {plan_a_borrar}"):
+                    supabase.table("config_planes").delete().eq("nombre", plan_a_borrar).execute()
+                    st.error(f"Plan {plan_a_borrar} eliminado.")
+                    time.sleep(1)
+                    st.rerun()
 
+    except Exception as e:
+        st.error(f"Error al conectar con la tabla config_planes: {e}")
+        
 # --- SECCIÓN DE SOLICITUDES ACTUALIZADA ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
