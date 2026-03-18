@@ -82,47 +82,52 @@ def mostrar_metricas(df):
 
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
-    try:
-        # CONSULTA DIRECTA A LA TABLA DE LEADS
-        res = supabase.table("suscriptores_leads").select("*").order("fecha", desc=True).execute()
-        leads = res.data
+    
+    # 1. Indicador de carga para saber que el código está trabajando
+    with st.spinner("Consultando base de datos..."):
+        try:
+            # 2. CONSULTA SIN FILTROS (Traer todo para asegurar que se vea algo)
+            # He quitado el .order por ahora para probar si es un tema de índice de fecha
+            res = supabase.table("suscriptores_leads").select("*").execute()
+            leads = res.data
 
-        if not leads:
-            st.info("💡 No hay solicitudes nuevas de la página web por el momento.")
-        else:
-            df_leads = pd.DataFrame(leads)
+            if not leads or len(leads) == 0:
+                st.warning("⚠️ La base de datos respondió, pero la tabla 'suscriptores_leads' parece estar vacía.")
+                # Botón de auxilio para re-intentar conexión
+                if st.button("🔄 Forzar Re-consulta"):
+                    st.rerun()
+            else:
+                df_leads = pd.DataFrame(leads)
+                
+                # Ordenar manualmente en Python por si el SQL falla
+                if 'fecha' in df_leads.columns:
+                    df_leads['fecha'] = pd.to_datetime(df_leads['fecha'])
+                    df_leads = df_leads.sort_values(by='fecha', ascending=False)
+                    df_leads['fecha'] = df_leads['fecha'].dt.strftime('%Y-%m-%d %H:%M')
+
+                # 3. Vista SaaS Pro
+                st.success(f"✅ Se encontraron {len(df_leads)} solicitudes registradas.")
+                
+                cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
+                df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
+                
+                st.dataframe(
+                    df_display, 
+                    use_container_width=True,
+                    height=400 # Altura fija para que no se pierda
+                )
+                
+                st.divider()
+                if st.button("🗑️ Limpiar Historial de Solicitudes", type="secondary"):
+                    supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
+                    st.success("Registros eliminados.")
+                    time.sleep(1)
+                    st.rerun()
+
+        except Exception as e:
+            st.error(f"🚨 ERROR CRÍTICO: No se pudo leer la tabla. Detalles: {str(e)}")
+            st.info("Sugerencia: Verifica que el nombre de la tabla sea exactamente 'suscriptores_leads' (todo en minúsculas).")
             
-            # Formatear la fecha para que se vea mejor
-            if 'fecha' in df_leads.columns:
-                df_leads['fecha'] = pd.to_datetime(df_leads['fecha']).dt.strftime('%Y-%m-%d %H:%M')
-
-            # Reordenar columnas para visualización SaaS
-            cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
-            df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
-            
-            # Tabla interactiva pro
-            st.dataframe(
-                df_display, 
-                use_container_width=True,
-                column_config={
-                    "email": st.column_config.TextColumn("Correo Electrónico"),
-                    "telefono": st.column_config.TextColumn("WhatsApp"),
-                    "puntos_venta": st.column_config.NumberColumn("Nº Puntos")
-                }
-            )
-            
-            st.divider()
-            c_del1, c_del2 = st.columns([1, 4])
-            if c_del1.button("🗑️ Limpiar Leads", use_container_width=True):
-                # Borrar todos excepto un ID falso para no vaciar la tabla si se usa Postgres puro
-                supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
-                st.success("Historial de solicitudes limpiado")
-                time.sleep(1)
-                st.rerun()
-
-    except Exception as e:
-        st.error(f"Error al cargar solicitudes: {e}")
-
 # =============================================================
 # 5. LÓGICA PRINCIPAL
 # =============================================================
