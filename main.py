@@ -83,67 +83,64 @@ def mostrar_metricas(df):
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # 1. Botón de refresco manual en la esquina
-    col_ref, col_vacia = st.columns([1, 4])
-    if col_ref.button("🔄 Actualizar Datos", use_container_width=True):
+    # Botón de refresco que limpia caché interna
+    if st.button("🔄 Sincronizar con Base de Datos", use_container_width=True):
+        st.cache_data.clear()
         st.rerun()
     
     try:
-        # 2. CONSULTA PURA (Sin ordenamiento SQL para evitar conflictos de caché)
-        res = supabase.table("suscriptores_leads").select("*").execute()
-        leads = res.data
+        # CONSULTA PURA
+        # Agregamos un select("*") explícito
+        query = supabase.table("suscriptores_leads").select("*").execute()
+        leads = query.data
 
-        # 3. Verificación Real
-        if not leads or len(leads) == 0:
-            st.warning("⚠️ No se encontraron registros. Verifica que la política de lectura en Supabase esté permitida para el rol 'public' o 'anon'.")
+        if not leads:
+            st.warning("🔎 El sistema conectó con la tabla, pero Supabase no devolvió filas.")
+            st.info("💡 **Acción requerida:** Ve a Supabase -> Policies -> suscriptores_leads y verifica que la política de SELECT esté aplicada al rol 'anon' o 'public' con USING (true).")
             
-            # Auxilio visual: Si la tabla existe pero no hay leads
-            st.info("Nota: Si acabas de registrar uno, asegúrate de haberle dado a 'Guardar Política' en Supabase.")
+            # Botón de diagnóstico para ti
+            if st.checkbox("Ver detalles técnicos del enlace"):
+                st.write("Datos recibidos:", leads)
+                st.write("Configuración: Conexión establecida.")
         else:
-            # 4. Procesamiento de datos en Python (Más seguro que SQL)
             df_leads = pd.DataFrame(leads)
             
-            # Limpieza de nombres de columnas (quitar espacios si los hay)
+            # Limpieza y Formateo
             df_leads.columns = [c.strip() for c in df_leads.columns]
             
-            # Ordenar por fecha (si existe la columna)
             if 'fecha' in df_leads.columns:
                 df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
                 df_leads = df_leads.sort_values(by='fecha', ascending=False)
-                df_leads['fecha'] = df_leads['fecha'].dt.strftime('%Y-%m-%d %H:%M')
+                df_leads['fecha'] = df_leads['fecha'].dt.strftime('%d/%m/%Y %H:%M')
 
-            # 5. Muestra de Resultados con Contador Pro
-            st.success(f"✅ {len(df_leads)} Solicitudes encontradas en el sistema.")
+            st.success(f"✅ Se encontraron {len(df_leads)} solicitudes.")
             
-            # Configuración de columnas para que se vea SaaS Pro
-            cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
-            # Mostrar solo las que existan realmente en el DataFrame
-            df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
-            
+            # Vista SaaS Pro
             st.dataframe(
-                df_display, 
+                df_leads, 
                 use_container_width=True,
                 height=450,
                 column_config={
-                    "fecha": st.column_config.TextColumn("📅 Recibido"),
-                    "banca": st.column_config.TextColumn("🏦 Empresa"),
+                    "fecha": st.column_config.TextColumn("📅 Fecha/Hora"),
+                    "banca": st.column_config.TextColumn("🏦 Agencia"),
+                    "representante": st.column_config.TextColumn("👤 Titular"),
                     "email": st.column_config.TextColumn("📧 Correo"),
+                    "telefono": st.column_config.TextColumn("📲 WhatsApp"),
                     "puntos_venta": st.column_config.NumberColumn("📍 Puntos")
                 }
             )
             
             st.divider()
-            # Botón de limpieza al final
-            if st.button("🗑️ Vaciar Historial de Solicitudes", type="secondary"):
-                # Usamos un filtro dummy para permitir el delete total
-                supabase.table("suscriptores_leads").delete().neq("banca", "DUMMY_DATA_X").execute()
-                st.success("Registros eliminados correctamente.")
+            if st.button("🗑️ Vaciar Historial", type="secondary"):
+                # Borrado seguro usando el campo email como referencia
+                supabase.table("suscriptores_leads").delete().neq("email", "DUMMY_EMAIL_999").execute()
+                st.success("Registros eliminados.")
                 time.sleep(1)
                 st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 ERROR CRÍTICO DE LECTURA")
-        st.code(str(e)) # Esto nos dirá si es un tema de permisos o de nombre de columna
+        st.error(f"🚨 Fallo en la comunicación con la tabla")
+        st.exception(e)
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
