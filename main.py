@@ -4,8 +4,28 @@ import pandas as pd
 from datetime import datetime, timedelta
 import time
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="ME - Control Maestro", page_icon="💎", layout="wide")
+# =============================================================
+# 1. CONFIGURACIÓN DE PÁGINA (ESTILO SAAS)
+# =============================================================
+st.set_page_config(
+    page_title="ME - Control Maestro", 
+    page_icon="💎", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Estilos CSS para el look SaaS Profesional
+st.markdown("""
+    <style>
+    .main { background-color: #f8fafc; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    [data-testid="stHeader"] { background: #1e293b; }
+    .reportview-container .main .block-container { padding-top: 2rem; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; background-color: transparent; border-radius: 4px 4px 0px 0px; gap: 1px; }
+    .stTabs [aria-selected="true"] { border-bottom: 2px solid #02ab21 !important; color: #02ab21 !important; }
+    </style>
+""", unsafe_allow_html=True)
 
 # 2. CONEXIÓN A SUPABASE
 @st.cache_resource
@@ -16,9 +36,10 @@ def init_connection():
 
 supabase = init_connection()
 
-# --- FUNCIONES DE SEGURIDAD ---
+# =============================================================
+# 3. SEGURIDAD DE ACCESO
+# =============================================================
 def check_password():
-    """Retorna True si el usuario ingresó la clave correcta."""
     def password_entered():
         if st.session_state["password"] == st.secrets["MASTER_PASSWORD"]:
             st.session_state["password_correct"] = True
@@ -28,117 +49,148 @@ def check_password():
 
     if "password_correct" not in st.session_state:
         st.markdown("<br><br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1,2,1])
+        col1, col2, col3 = st.columns([1,1.5,1])
         with col2:
-            st.image("https://cdn-icons-png.flaticon.com/512/6195/6195700.png", width=100)
-            st.title("Acceso Restringido")
-            st.text_input("Ingresa la Clave Maestra", type="password", on_change=password_entered, key="password")
+            st.markdown("""
+                <div style='text-align: center; padding: 30px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);'>
+                    <h1 style='color: #1e293b; font-size: 24px;'>🛡️ Panel Administrador</h1>
+                    <p style='color: #64748b;'>Ingresa la clave maestra para continuar</p>
+                </div>
+            """, unsafe_allow_html=True)
+            st.text_input("", type="password", on_change=password_entered, key="password", placeholder="Clave Maestra")
             if "password_correct" in st.session_state and not st.session_state["password_correct"]:
                 st.error("😕 Clave incorrecta")
         return False
     return True
 
-# --- INICIO DE LA APP ---
-if check_password():
-    
-    st.title("💎 Multibanca Express - Control Maestro")
-    
-    # 3. CARGA DE DATOS
-    try:
-        res = supabase.table("perfiles").select("*").execute()
-        df = pd.DataFrame(res.data)
-        
-        # Métricas rápidas
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Clientes", len(df))
-        c2.metric("Activos", len(df[df['status'] == 'activo']))
-        c3.metric("Premium", len(df[df['plan'] == 'Premium']))
-        c4.metric("Sistema", "Online", delta="OK")
+# =============================================================
+# 4. COMPONENTES DEL DASHBOARD
+# =============================================================
 
-        tab1, tab2 = st.tabs(["👥 Gestión de Clientes", "🚀 Solicitudes"])
+def mostrar_metricas(df):
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Total Clientes", len(df), help="Total de suscriptores en la base de datos")
+    with c2:
+        activos = len(df[df['status'] == 'activo'])
+        st.metric("Cuentas Activas", activos, delta=f"{(activos/len(df)*100):.1f}%")
+    with c3:
+        premium = len(df[df['plan'] == 'Premium'])
+        st.metric("Cuentas Premium", premium)
+    with c4:
+        st.metric("Estatus Sistema", "Online", delta="OK", delta_color="normal")
 
-        with tab1:
-            st.subheader("Listado de Suscriptores")
-            st.dataframe(df[["email", "nombre_banca", "plan", "status", "fecha_vencimiento"]], use_container_width=True)
-
-            st.divider()
-            st.subheader("✏️ Editor Maestro de Licencias")
-            
-            # Buscador/Selector de cliente
-            cliente_sel = st.selectbox("Selecciona un cliente para gestionar:", df["email"].tolist())
-            datos_cliente = df[df["email"] == cliente_sel].iloc[0]
-
-            col_a, col_b = st.columns(2)
-            
-            with col_a:
-                st.markdown(f"**Cliente:** {cliente_sel}")
-                st.markdown(f"**Banca:** {datos_cliente['nombre_banca']}")
-                nuevo_status = st.radio("Estado de la cuenta:", ["activo", "suspendido", "vencido"], 
-                                      index=["activo", "suspendido", "vencido"].index(datos_cliente['status']), horizontal=True)
-
-            with col_b:
-                st.markdown("**Gestión de Tiempo**")
-                fecha_actual = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
-                opcion_tiempo = st.selectbox("Extender por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
-                
-                nueva_fecha = fecha_actual
-                if opcion_tiempo == "1 Mes": nueva_fecha += timedelta(days=30)
-                elif opcion_tiempo == "3 Meses": nueva_fecha += timedelta(days=90)
-                elif opcion_tiempo == "6 Meses": nueva_fecha += timedelta(days=180)
-                elif opcion_tiempo == "1 Año": nueva_fecha += timedelta(days=365)
-                
-                st.info(f"Nueva fecha sugerida: {nueva_fecha.strftime('%Y-%m-%d')}")
-
-            if st.button("💾 APLICAR CAMBIOS EN SUPABASE", use_container_width=True, type="primary"):
-                with st.spinner("Actualizando..."):
-                    supabase.table("perfiles").update({
-                        "status": nuevo_status,
-                        "fecha_vencimiento": nueva_fecha.strftime('%Y-%m-%d')
-                    }).eq("email", cliente_sel).execute()
-                    st.success(f"¡Cambios aplicados a {cliente_sel} con éxito!")
-                    time.sleep(1)
-                    st.rerun()
-
-        with tab2:
-            st.info("Aquí aparecerán los leads de tu página web pronto.")
-
-    except Exception as e:
-        st.error(f"Error al conectar con la base de datos: {e}")
-
-    # Botón de cerrar sesión al final del sidebar
-    with st.sidebar:
-        if st.button("🚪 Cerrar Sesión Admin"):
-            del st.session_state["password_correct"]
-            st.rerun()
-            
 def seccion_solicitudes():
-    st.subheader("📩 Gestión de Solicitudes (Leads)")
-    
+    st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     try:
-        # Consultamos la tabla de leads
+        # CONSULTA DIRECTA A LA TABLA DE LEADS
         res = supabase.table("suscriptores_leads").select("*").order("fecha", desc=True).execute()
         leads = res.data
 
         if not leads:
-            st.info("💡 No hay solicitudes pendientes por ahora.")
+            st.info("💡 No hay solicitudes nuevas de la página web por el momento.")
         else:
-            # Convertimos a DataFrame para una vista limpia
             df_leads = pd.DataFrame(leads)
             
-            # Reordenar columnas para que se vea profesional
-            columnas_orden = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado"]
-            # Filtrar solo las que existen por si acaso
-            df_leads = df_leads[[col for col in columnas_orden if col in df_leads.columns]]
+            # Formatear la fecha para que se vea mejor
+            if 'fecha' in df_leads.columns:
+                df_leads['fecha'] = pd.to_datetime(df_leads['fecha']).dt.strftime('%Y-%m-%d %H:%M')
 
-            # Mostrar tabla interactiva
-            st.dataframe(df_leads, use_container_width=True)
-
-            # Botón para limpiar leads procesados (opcional)
-            if st.button("Limpiar Historial de Solicitudes"):
-                if st.confirm("¿Seguro que desea borrar todos los leads?"):
-                    supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
-                    st.rerun()
+            # Reordenar columnas para visualización SaaS
+            cols_pro = ["fecha", "banca", "representante", "email", "telefono", "puntos_venta", "estado", "direccion"]
+            df_display = df_leads[[c for c in cols_pro if c in df_leads.columns]]
+            
+            # Tabla interactiva pro
+            st.dataframe(
+                df_display, 
+                use_container_width=True,
+                column_config={
+                    "email": st.column_config.TextColumn("Correo Electrónico"),
+                    "telefono": st.column_config.TextColumn("WhatsApp"),
+                    "puntos_venta": st.column_config.NumberColumn("Nº Puntos")
+                }
+            )
+            
+            st.divider()
+            c_del1, c_del2 = st.columns([1, 4])
+            if c_del1.button("🗑️ Limpiar Leads", use_container_width=True):
+                # Borrar todos excepto un ID falso para no vaciar la tabla si se usa Postgres puro
+                supabase.table("suscriptores_leads").delete().neq("id", 0).execute()
+                st.success("Historial de solicitudes limpiado")
+                time.sleep(1)
+                st.rerun()
 
     except Exception as e:
-        st.error(f"❌ Error al cargar leads: {str(e)}")
-        st.warning("Verifica que la política SELECT de la tabla tenga acceso para tu usuario.")
+        st.error(f"Error al cargar solicitudes: {e}")
+
+# =============================================================
+# 5. LÓGICA PRINCIPAL
+# =============================================================
+
+if check_password():
+    # Barra lateral SaaS
+    with st.sidebar:
+        st.image("https://cdn-icons-png.flaticon.com/512/6195/6195700.png", width=50)
+        st.title("ME Admin")
+        st.write("---")
+        if st.button("🚪 Cerrar Sesión"):
+            del st.session_state["password_correct"]
+            st.rerun()
+
+    # Contenido principal
+    try:
+        # Cargar datos de clientes
+        res_p = supabase.table("perfiles").select("*").execute()
+        df_clientes = pd.DataFrame(res_p.data)
+
+        st.title("💎 Multibanca Express - Control Maestro")
+        mostrar_metricas(df_clientes)
+        
+        tab1, tab2 = st.tabs(["👥 Gestión de Clientes", "🚀 Solicitudes (Leads)"])
+
+        with tab1:
+            st.markdown("### Listado de Suscriptores")
+            st.dataframe(
+                df_clientes[["email", "nombre_banca", "plan", "status", "fecha_vencimiento"]], 
+                use_container_width=True
+            )
+
+            with st.expander("✏️ Herramienta de Modificación de Licencias", expanded=True):
+                cliente_sel = st.selectbox("Buscar cliente por Email:", df_clientes["email"].tolist())
+                datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
+
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
+                    nuevo_status = st.segmented_control(
+                        "Estatus de Cuenta:", 
+                        ["activo", "suspendido", "vencido"], 
+                        default=datos_cliente['status']
+                    )
+                with col_b:
+                    fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
+                    opcion_t = st.selectbox("Extender suscripción por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
+                    
+                    nueva_f = fecha_orig
+                    if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
+                    elif opcion_t == "3 Meses": nueva_f += timedelta(days=90)
+                    elif opcion_t == "6 Meses": nueva_f += timedelta(days=180)
+                    elif opcion_t == "1 Año": nueva_f += timedelta(days=365)
+                    
+                    st.info(f"Nueva fecha: **{nueva_f.strftime('%Y-%m-%d')}**")
+
+                if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary", use_container_width=True):
+                    supabase.table("perfiles").update({
+                        "status": nuevo_status,
+                        "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
+                    }).eq("email", cliente_sel).execute()
+                    st.success("✅ Base de datos actualizada con éxito.")
+                    time.sleep(1)
+                    st.rerun()
+
+        with tab2:
+            # AQUÍ ES DONDE SE LLAMA A LA FUNCIÓN QUE CARGA LOS LEADS
+            seccion_solicitudes()
+
+    except Exception as e:
+        st.error(f"🚨 Error crítico de conexión: {e}")
