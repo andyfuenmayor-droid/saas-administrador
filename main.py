@@ -133,42 +133,49 @@ def seccion_planes():
     except Exception as e:
         st.error(f"Error al conectar con la tabla config_planes: {e}")
         
-# --- SECCIÓN DE SOLICITUDES: PITCH DE VENTAS + DESCUENTOS + PAGOS ---
+# --- SECCIÓN DE SOLICITUDES: REPARADA Y SINCRONIZADA ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     
     try:
-        # 1. CARGA DE PLANES (Desde DB)
+        # 1. CARGA DE PLANES
         res_planes = supabase.table("config_planes").select("*").execute()
         planes_disponibles = res_planes.data
 
         if not planes_disponibles:
-            st.warning("⚠️ No se encontraron planes en la base de datos.")
+            st.warning("⚠️ Configura los planes primero.")
             return
 
-        # 2. CARGA DE LEADS
+        # 2. CARGA DE LEADS (Incluyendo el ID para diferenciar duplicados)
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
 
         if not leads:
-            st.info("💡 No hay solicitudes nuevas en este momento.")
+            st.info("💡 No hay solicitudes nuevas.")
         else:
-            opciones = {f"{l.get('banca', 'N/A')} ({l.get('representante', 'N/A')})": l for l in leads}
+            # Mostramos ID, Banca y Representante para no confundir duplicados
+            opciones = {
+                f"ID: {l.get('id')} | {l.get('banca', 'N/A')} ({l.get('representante', 'N/A')})": l 
+                for l in leads
+            }
+            
             seleccion = st.selectbox("🎯 Seleccione un Prospecto para gestionar:", options=opciones.keys())
             
             if seleccion:
                 lead = opciones[seleccion]
-                lead_id = lead.get('id') # Extraemos el ID para asegurar el borrado
+                lead_id = lead.get('id')
                 st.divider()
                 
                 col_info, col_planes = st.columns([1, 1.2])
                 
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
+                    # CORRECCIÓN DE NOMBRES DE CAMPOS SEGÚN TU TABLA (puntos_venta)
                     st.markdown(f"""
                         <div style='background: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;'>
                             <strong>Empresa:</strong> {lead.get('banca', 'N/A')}<br>
                             <strong>Titular:</strong> {lead.get('representante', 'N/A')}<br>
+                            <strong>WhatsApp:</strong> {lead.get('telefono', 'N/A')}<br>
                             <strong>Puntos:</strong> {lead.get('puntos_venta', 0)}
                         </div>
                     """, unsafe_allow_html=True)
@@ -187,6 +194,7 @@ def seccion_solicitudes():
                     plan_sel = st.selectbox("Plan a Cotizar:", nombres_planes)
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     
+                    # CÁLCULOS SINCRONIZADOS CON TU TABLA
                     pts = int(lead.get('puntos_venta', 0))
                     base = float(datos_plan.get('costo_base', 0))
                     punto = float(datos_plan.get('costo_por_punto', 0))
@@ -209,18 +217,16 @@ def seccion_solicitudes():
 
                     msg_base = (
                         f"Hola *{lead.get('representante', 'Amigo')}*! 👋\n\n"
-                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead.get('banca', 'tu Agencia')}* "
-                        f"y hemos diseñado esta propuesta exclusiva para tus {pts} puntos:\n\n"
+                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead.get('banca', 'tu Agencia')}*.\n\n"
                         f"🏆 *PLAN: {plan_sel.upper()}*\n"
                         f"💰 *INVERSIÓN FINAL: ${total_final:,.2f} USD*\n"
                         f"(Suscripción Anual SaaS)\n\n"
-                        f"🚀 *¿QUÉ INCLUYE TU SUSCRIPCIÓN?*\n"
-                        f"✅ *Control Total:* Monitoreo en tiempo real 24/7.\n"
-                        f"✅ *Seguridad:* Encriptación grado bancario.\n"
-                        f"✅ *Autonomía:* Gestión total desde tu móvil.\n\n"
+                        f"🚀 *¿QUÉ INCLUYE?*\n"
+                        f"✅ *Control Total:* Tiempo real 24/7.\n"
+                        f"✅ *Seguridad:* Grado bancario.\n"
+                        f"✅ *Autonomía:* Gestión móvil.\n\n"
                         f"💳 *MÉTODOS DE PAGO:* \n{lista_pagos}\n\n"
-                        f"Este sistema eliminará errores manuales y maximizará tu rentabilidad desde el primer día. 📈\n\n"
-                        f"¿Te gustaría que agendemos la activación hoy mismo? 😊"
+                        f"¿Agendamos la activación hoy? 😊"
                     )
 
                     import urllib.parse
@@ -231,18 +237,15 @@ def seccion_solicitudes():
                                   use_container_width=True)
                     
                     st.write("")
-                    
-                    # BOTÓN DE ELIMINAR CORREGIDO
+                    # ELIMINAR POR ID ÚNICO (Evita borrar todos los duplicados a la vez)
                     if st.button("🗑️ Marcar como Procesado (Eliminar)", key=f"del_{lead_id}", use_container_width=True, type="secondary"):
-                        with st.spinner("Eliminando registro..."):
-                            # Ejecución directa y verificación
-                            supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
-                        st.success("Lead eliminado correctamente.")
-                        time.sleep(1) # Pausa breve para que veas el mensaje de éxito
+                        supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
+                        st.success(f"Lead {lead_id} eliminado.")
+                        time.sleep(1)
                         st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 Error en gestión de Leads: {e}")
+        st.error(f"🚨 Error: {e}")
   
 
 # --- EN TU BLOQUE PRINCIPAL (Tabs) ---
