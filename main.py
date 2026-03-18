@@ -207,12 +207,41 @@ def seccion_solicitudes():
 # with tab2: seccion_solicitudes()
 # with tab3: seccion_planes()
             
-# =============================================================
-# 5. LÓGICA PRINCIPAL (FULL WIDTH + HEADER LOGOUT & ENTRAR)
+def check_password():
+    """Retorna True si el usuario y contraseña son correctos."""
+    def login_form():
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("""
+                <div style='text-align: center; padding: 20px; background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);'>
+                    <h2 style='color: #1e3a8a; margin-bottom: 0;'>🛡️ Panel Administrador</h2>
+                    <p style='color: #64748b;'>Ingrese sus credenciales maestros</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            u = st.text_input("Usuario Administrador", key="master_user", placeholder="Ej: admin")
+            p = st.text_input("Contraseña Maestra", type="password", key="master_pass", placeholder="••••••••")
+            
+            if st.button("ACCEDER AL CONTROL", use_container_width=True, type="primary"):
+                # Verificamos contra los secrets (debes crear MASTER_USER en Streamlit Secrets)
+                if u == st.secrets["MASTER_USER"] and p == st.secrets["MASTER_PASSWORD"]:
+                    st.session_state["password_correct"] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas")
+
+    if "password_correct" not in st.session_state:
+        login_form()
+        return False
+    return True
+
+    # =============================================================
+# 5. LÓGICA PRINCIPAL (FULL WIDTH + HEADER CLEAN LOGOUT)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS para ocultar sidebar y mejorar UI Responsiva
+    # Inyectar CSS para ocultar sidebar y maximizar espacio
     st.markdown("""
         <style>
         /* Ocultar sidebar por completo */
@@ -221,28 +250,30 @@ if check_password():
         /* Ajustar contenedor principal */
         .block-container { padding-top: 1rem !important; max-width: 95% !important; }
 
+        /* Estilo del Header Responsivo */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
         @media (max-width: 640px) {
-            .main-title { font-size: 20px !important; }
+            .main-title { font-size: 18px !important; }
             [data-testid="column"] { width: 100% !important; flex: 1 1 100% !important; margin-bottom: 0.5rem !important; }
-            .stButton button { height: 50px !important; }
+            .stButton button { height: 45px !important; }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # --- HEADER CON TÍTULO, ENTRAR Y SALIR ---
-    # Ajustamos las columnas para un diseño equilibrado en el encabezado
-    col_head_title, col_head_entrar, col_head_logout = st.columns([3, 1, 1])
+    # --- HEADER LIMPIO (Título + Salir) ---
+    # Según tu imagen image_95c627.png, eliminamos el botón central 'Entrar'
+    col_head_title, col_head_logout = st.columns([4, 1])
     
     with col_head_title:
         st.markdown("<h1 class='main-title' style='margin:0;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
     
-    with col_head_entrar:
-        # Botón de Entrar (puedes vincularlo a refrescar o ir al inicio)
-        if st.button("🚀 Entrar", use_container_width=True):
-            st.rerun()
-    
     with col_head_logout:
-        # Botón de Salir
         if st.button("🚪 Salir", use_container_width=True):
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
@@ -258,37 +289,51 @@ if check_password():
 
         mostrar_metricas(df_clientes)
         
+        # Tabs con iconos y nombres claros
         tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
 
         with tab1:
-            st.markdown("### 📋 Suscriptores")
-            st.dataframe(df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], use_container_width=True)
+            st.markdown("#### 📋 Suscriptores")
+            # Tabla optimizada
+            st.dataframe(
+                df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
+                use_container_width=True,
+                height=300
+            )
 
             with st.expander("✏️ Editar Licencia", expanded=True):
-                cliente_sel = st.selectbox("Seleccionar Email:", df_clientes["email"].tolist())
+                # Usamos un selector con búsqueda
+                emails_list = df_clientes["email"].tolist()
+                cliente_sel = st.selectbox("Buscar por Email:", emails_list)
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
 
                 col_a, col_b = st.columns(2)
                 with col_a:
                     st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
-                    nuevo_status = st.segmented_control("Estatus:", ["activo", "suspendido", "vencido"], default=datos_cliente['status'])
+                    nuevo_status = st.segmented_control(
+                        "Estatus:", 
+                        ["activo", "suspendido", "vencido"], 
+                        default=datos_cliente['status']
+                    )
                 with col_b:
                     fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
                     opcion_t = st.selectbox("Extender por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
+                    
                     nueva_f = fecha_orig
                     if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
                     elif opcion_t == "3 Meses": nueva_f += timedelta(days=90)
                     elif opcion_t == "6 Meses": nueva_f += timedelta(days=180)
                     elif opcion_t == "1 Año": nueva_f += timedelta(days=365)
-                    st.info(f"Vence: **{nueva_f.strftime('%Y-%m-%d')}**")
+                    
+                    st.info(f"Vencimiento: **{nueva_f.strftime('%Y-%m-%d')}**")
 
                 if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
-                    with st.spinner("Actualizando..."):
+                    with st.spinner("Sincronizando..."):
                         supabase.table("perfiles").update({
                             "status": nuevo_status,
                             "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
                         }).eq("email", cliente_sel).execute()
-                        st.success("✅ ¡Licencia actualizada!")
+                        st.success("✅ Licencia actualizada")
                         time.sleep(1)
                         st.rerun()
 
