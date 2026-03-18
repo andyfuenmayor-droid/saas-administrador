@@ -133,7 +133,7 @@ def seccion_planes():
     except Exception as e:
         st.error(f"Error al conectar con la tabla config_planes: {e}")
         
-# --- SECCIÓN DE SOLICITUDES: REPARADA Y SINCRONIZADA ---
+# --- SECCIÓN DE SOLICITUDES: CON MOVIMIENTO A SEGUIMIENTO ---
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     
@@ -143,17 +143,17 @@ def seccion_solicitudes():
         planes_disponibles = res_planes.data
 
         if not planes_disponibles:
-            st.warning("⚠️ Configura los planes primero.")
+            st.warning("⚠️ Configura los planes primero en la pestaña correspondiente.")
             return
 
-        # 2. CARGA DE LEADS (Incluyendo el ID para diferenciar duplicados)
+        # 2. CARGA DE LEADS
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
 
         if not leads:
-            st.info("💡 No hay solicitudes nuevas.")
+            st.info("💡 No hay solicitudes nuevas en este momento.")
         else:
-            # Mostramos ID, Banca y Representante para no confundir duplicados
+            # Diccionario para diferenciar duplicados por ID
             opciones = {
                 f"ID: {l.get('id')} | {l.get('banca', 'N/A')} ({l.get('representante', 'N/A')})": l 
                 for l in leads
@@ -170,12 +170,10 @@ def seccion_solicitudes():
                 
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
-                    # CORRECCIÓN DE NOMBRES DE CAMPOS SEGÚN TU TABLA (puntos_venta)
                     st.markdown(f"""
                         <div style='background: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;'>
                             <strong>Empresa:</strong> {lead.get('banca', 'N/A')}<br>
                             <strong>Titular:</strong> {lead.get('representante', 'N/A')}<br>
-                            <strong>WhatsApp:</strong> {lead.get('telefono', 'N/A')}<br>
                             <strong>Puntos:</strong> {lead.get('puntos_venta', 0)}
                         </div>
                     """, unsafe_allow_html=True)
@@ -194,7 +192,7 @@ def seccion_solicitudes():
                     plan_sel = st.selectbox("Plan a Cotizar:", nombres_planes)
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     
-                    # CÁLCULOS SINCRONIZADOS CON TU TABLA
+                    # Cálculos
                     pts = int(lead.get('puntos_venta', 0))
                     base = float(datos_plan.get('costo_base', 0))
                     punto = float(datos_plan.get('costo_por_punto', 0))
@@ -215,21 +213,17 @@ def seccion_solicitudes():
                     tel_clean = "".join(filter(str.isdigit, tel_raw))
                     lista_pagos = "\n".join([f"🔹 {mp}" for mp in metodos_pago])
 
+                    import urllib.parse
                     msg_base = (
                         f"Hola *{lead.get('representante', 'Amigo')}*! 👋\n\n"
-                        f"Soy el administrador de *Multibanca Express*. Analizamos tu solicitud para *{lead.get('banca', 'tu Agencia')}*.\n\n"
+                        f"Soy el administrador de *Multibanca Express*. Recibimos tu solicitud para *{lead.get('banca', 'tu Agencia')}*.\n\n"
                         f"🏆 *PLAN: {plan_sel.upper()}*\n"
-                        f"💰 *INVERSIÓN FINAL: ${total_final:,.2f} USD*\n"
-                        f"(Suscripción Anual SaaS)\n\n"
+                        f"💰 *INVERSIÓN FINAL: ${total_final:,.2f} USD*\n\n"
                         f"🚀 *¿QUÉ INCLUYE?*\n"
-                        f"✅ *Control Total:* Tiempo real 24/7.\n"
-                        f"✅ *Seguridad:* Grado bancario.\n"
-                        f"✅ *Autonomía:* Gestión móvil.\n\n"
+                        f"✅ Control Total 24/7 | ✅ Seguridad Grado Bancario\n\n"
                         f"💳 *MÉTODOS DE PAGO:* \n{lista_pagos}\n\n"
                         f"¿Agendamos la activación hoy? 😊"
                     )
-
-                    import urllib.parse
                     msg_url = urllib.parse.quote(msg_base)
 
                     st.link_button("🟢 ENVIAR PROPUESTA POR WHATSAPP", 
@@ -237,15 +231,71 @@ def seccion_solicitudes():
                                   use_container_width=True)
                     
                     st.write("")
-                    # ELIMINAR POR ID ÚNICO (Evita borrar todos los duplicados a la vez)
-                    if st.button("🗑️ Marcar como Procesado (Eliminar)", key=f"del_{lead_id}", use_container_width=True, type="secondary"):
-                        supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
-                        st.success(f"Lead {lead_id} eliminado.")
+                    
+                    # --- BOTÓN DE PROCESAR (MOVER A SEGUIMIENTO) ---
+                    if st.button("🚀 Mover a Seguimiento (Cotizado)", key=f"move_{lead_id}", use_container_width=True, type="primary"):
+                        with st.spinner("Moviendo a lista de espera..."):
+                            # 1. Insertamos en la nueva tabla de seguimiento
+                            data_seguimiento = {
+                                "banca": lead.get('banca'),
+                                "representante": lead.get('representante'),
+                                "telefono": lead.get('telefono'),
+                                "puntos_venta": pts,
+                                "plan_cotizado": plan_sel,
+                                "total_cotizado": total_final,
+                                "estado_seguimiento": "esperando_pago"
+                            }
+                            supabase.table("leads_seguimiento").insert(data_seguimiento).execute()
+                            
+                            # 2. Ahora sí lo borramos de las solicitudes nuevas
+                            supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
+                            
+                        st.success(f"✅ {lead.get('banca')} movido a Seguimiento.")
                         time.sleep(1)
                         st.rerun()
 
     except Exception as e:
         st.error(f"🚨 Error: {e}")
+
+def seccion_seguimiento():
+    st.markdown("### ⏳ Prospectos en Espera de Activación")
+    
+    try:
+        res = supabase.table("leads_seguimiento").select("*").eq("estado_seguimiento", "esperando_pago").execute()
+        seguimiento = res.data
+
+        if not seguimiento:
+            st.info("No hay clientes pendientes de pago.")
+        else:
+            df_seg = pd.DataFrame(seguimiento)
+            
+            # Vista de tabla elegante
+            st.dataframe(
+                df_seg[["banca", "representante", "plan_cotizado", "total_cotizado", "telefono"]],
+                use_container_width=True,
+                column_config={
+                    "total_cotizado": st.column_config.NumberColumn("Inversión", format="$%.2f"),
+                    "telefono": "WhatsApp"
+                }
+            )
+
+            # Acciones para activar
+            cliente_seg = st.selectbox("Seleccionar para activar:", [f"{s['banca']} - {s['representante']}" for s in seguimiento])
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ DAR DE ALTA (ACTIVAR)", use_container_width=True):
+                    # Aquí iría tu lógica para moverlo a la tabla final de 'perfiles'
+                    st.balloons()
+                    st.success("¡Cliente activado con éxito!")
+            with col2:
+                if st.button("❌ Cancelar Solicitud", use_container_width=True):
+                    sel_id = next(s['id'] for s in seguimiento if f"{s['banca']} - {s['representante']}" == cliente_seg)
+                    supabase.table("leads_seguimiento").delete().eq("id", sel_id).execute()
+                    st.rerun()
+
+    except Exception as e:
+        st.error(f"Error en seguimiento: {e}")
   
 
 # --- EN TU BLOQUE PRINCIPAL (Tabs) ---
@@ -292,11 +342,11 @@ def check_password():
     return True
     
 # =============================================================
-# 5. LÓGICA PRINCIPAL (RESPONSIVA + MULTI-USUARIO + HEADER)
+# 5. LÓGICA PRINCIPAL (FULL WIDTH + MULTI-USUARIO + 4 TABS)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS Responsivo Pro y ocultar Sidebar
+    # 1. Inyectar CSS Responsivo Pro y ocultar Sidebar
     st.markdown("""
         <style>
         /* Ocultar sidebar por completo */
@@ -314,20 +364,24 @@ if check_password():
                 margin-bottom: 0.5rem !important; 
             }
             .stButton button { height: 45px !important; }
+            /* Hacer que los tabs sean legibles en móvil */
+            .stTabs [data-baseweb="tab"] {
+                padding-left: 8px !important;
+                padding-right: 8px !important;
+                font-size: 12px !important;
+            }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # --- HEADER DINÁMICO (Nombre de Usuario + Botón Salir) ---
+    # 2. HEADER DINÁMICO (Nombre de Usuario + Botón Salir)
     col_t, col_l = st.columns([4, 1])
     
     with col_t:
-        # Obtenemos el nombre del administrador que inició sesión
         nombre_admin = st.session_state.get("admin_name", "Administrador")
         st.markdown(f"<h1 class='main-title' style='margin:0;'>💎 {nombre_admin}</h1>", unsafe_allow_html=True)
     
     with col_l:
-        # Botón de salida único en el header
         if st.button("🚪 Salir", use_container_width=True):
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
@@ -335,21 +389,20 @@ if check_password():
 
     st.write("---")
 
-    # --- CONTENIDO DEL DASHBOARD ---
+    # 3. CONTENIDO DEL DASHBOARD
     try:
-        # 1. Cargar datos de clientes desde Supabase
+        # Carga inicial de datos de clientes
         res_p = supabase.table("perfiles").select("*").execute()
         df_clientes = pd.DataFrame(res_p.data)
 
-        # 2. Mostrar métricas (Asegúrate de tener definida esta función)
+        # Mostrar métricas generales
         mostrar_metricas(df_clientes)
         
-        # 3. Tabs con nombres cortos para mejor visualización en móvil
-        tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
+        # 4. CONFIGURACIÓN DE LOS 4 TABS
+        tab1, tab2, tab3, tab4 = st.tabs(["👥 Clientes", "🚀 Solicitudes", "⏳ Seguimiento", "⚙️ Planes"])
 
         with tab1:
-            st.markdown("#### 📋 Suscriptores")
-            # Tabla optimizada con scroll horizontal automático
+            st.markdown("#### 📋 Gestión de Clientes Activos")
             st.dataframe(
                 df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
                 use_container_width=True,
@@ -357,7 +410,6 @@ if check_password():
             )
 
             with st.expander("✏️ Editar Licencia", expanded=True):
-                # Buscador de cliente
                 emails_list = df_clientes["email"].tolist()
                 cliente_sel = st.selectbox("Buscar por Email:", emails_list)
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
@@ -371,7 +423,6 @@ if check_password():
                         default=datos_cliente['status']
                     )
                 with col_b:
-                    # Lógica de fecha de vencimiento
                     fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
                     opcion_t = st.selectbox("Extender suscripción:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
                     
@@ -389,16 +440,20 @@ if check_password():
                             "status": nuevo_status,
                             "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
                         }).eq("email", cliente_sel).execute()
-                        st.success(f"✅ ¡Licencia de {datos_cliente['nombre_banca']} actualizada!")
+                        st.success("✅ Licencia actualizada")
                         time.sleep(1)
                         st.rerun()
 
         with tab2:
-            # Llamada a la sección de Leads (Asegúrate de tener definida seccion_solicitudes)
+            # Leads nuevos -> Aquí es donde los cotizas y mueves a seguimiento
             seccion_solicitudes()
 
         with tab3:
-            # Llamada a la sección de configuración de planes
+            # Leads en espera -> Aquí viven los que ya cotizaste
+            seccion_seguimiento()
+
+        with tab4:
+            # Configuración de precios y nombres de planes
             seccion_planes()
 
     except Exception as e:
