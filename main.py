@@ -244,12 +244,12 @@ def check_password():
         return False
     return True
     
-    # =============================================================
-# 5. LÓGICA PRINCIPAL (FULL WIDTH + HEADER CLEAN LOGOUT)
+# =============================================================
+# 5. LÓGICA PRINCIPAL (RESPONSIVA + MULTI-USUARIO + HEADER)
 # =============================================================
 
 if check_password():
-    # Inyectar CSS para ocultar sidebar y maximizar espacio
+    # Inyectar CSS Responsivo Pro y ocultar Sidebar
     st.markdown("""
         <style>
         /* Ocultar sidebar por completo */
@@ -258,30 +258,29 @@ if check_password():
         /* Ajustar contenedor principal */
         .block-container { padding-top: 1rem !important; max-width: 95% !important; }
 
-        /* Estilo del Header Responsivo */
-        .header-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
+        /* Ajustes para móviles */
         @media (max-width: 640px) {
             .main-title { font-size: 18px !important; }
-            [data-testid="column"] { width: 100% !important; flex: 1 1 100% !important; margin-bottom: 0.5rem !important; }
+            [data-testid="column"] { 
+                width: 100% !important; 
+                flex: 1 1 100% !important; 
+                margin-bottom: 0.5rem !important; 
+            }
             .stButton button { height: 45px !important; }
         }
         </style>
     """, unsafe_allow_html=True)
 
-    # --- HEADER LIMPIO (Título + Salir) ---
-    # Según tu imagen image_95c627.png, eliminamos el botón central 'Entrar'
-    col_head_title, col_head_logout = st.columns([4, 1])
+    # --- HEADER DINÁMICO (Nombre de Usuario + Botón Salir) ---
+    col_t, col_l = st.columns([4, 1])
     
-    with col_head_title:
-        st.markdown("<h1 class='main-title' style='margin:0;'>💎 Control Maestro</h1>", unsafe_allow_html=True)
+    with col_t:
+        # Obtenemos el nombre del administrador que inició sesión
+        nombre_admin = st.session_state.get("admin_name", "Administrador")
+        st.markdown(f"<h1 class='main-title' style='margin:0;'>💎 {nombre_admin}</h1>", unsafe_allow_html=True)
     
-    with col_head_logout:
+    with col_l:
+        # Botón de salida único en el header
         if st.button("🚪 Salir", use_container_width=True):
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
@@ -289,20 +288,21 @@ if check_password():
 
     st.write("---")
 
-    # Contenido principal
+    # --- CONTENIDO DEL DASHBOARD ---
     try:
-        # Cargar datos de clientes
+        # 1. Cargar datos de clientes desde Supabase
         res_p = supabase.table("perfiles").select("*").execute()
         df_clientes = pd.DataFrame(res_p.data)
 
+        # 2. Mostrar métricas (Asegúrate de tener definida esta función)
         mostrar_metricas(df_clientes)
         
-        # Tabs con iconos y nombres claros
+        # 3. Tabs con nombres cortos para mejor visualización en móvil
         tab1, tab2, tab3 = st.tabs(["👥 Clientes", "🚀 Leads", "⚙️ Planes"])
 
         with tab1:
             st.markdown("#### 📋 Suscriptores")
-            # Tabla optimizada
+            # Tabla optimizada con scroll horizontal automático
             st.dataframe(
                 df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], 
                 use_container_width=True,
@@ -310,7 +310,7 @@ if check_password():
             )
 
             with st.expander("✏️ Editar Licencia", expanded=True):
-                # Usamos un selector con búsqueda
+                # Buscador de cliente
                 emails_list = df_clientes["email"].tolist()
                 cliente_sel = st.selectbox("Buscar por Email:", emails_list)
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
@@ -324,8 +324,9 @@ if check_password():
                         default=datos_cliente['status']
                     )
                 with col_b:
+                    # Lógica de fecha de vencimiento
                     fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
-                    opcion_t = st.selectbox("Extender por:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
+                    opcion_t = st.selectbox("Extender suscripción:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
                     
                     nueva_f = fecha_orig
                     if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
@@ -341,15 +342,17 @@ if check_password():
                             "status": nuevo_status,
                             "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')
                         }).eq("email", cliente_sel).execute()
-                        st.success("✅ Licencia actualizada")
+                        st.success(f"✅ ¡Licencia de {datos_cliente['nombre_banca']} actualizada!")
                         time.sleep(1)
                         st.rerun()
 
         with tab2:
+            # Llamada a la sección de Leads (Asegúrate de tener definida seccion_solicitudes)
             seccion_solicitudes()
 
         with tab3:
+            # Llamada a la sección de configuración de planes
             seccion_planes()
 
     except Exception as e:
-        st.error(f"🚨 Error: {e}")
+        st.error(f"🚨 Error de datos: {e}")
