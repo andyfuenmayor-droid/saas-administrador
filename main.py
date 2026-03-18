@@ -85,32 +85,42 @@ def mostrar_metricas(df):
 def seccion_solicitudes():
     st.markdown("### 🚀 Solicitudes de Afiliación Recientes")
     
-    # Botón de refresco total
-    if st.button("🔄 Sincronizar Base de Datos", use_container_width=True):
+    # Botón de refresco total con limpieza de caché
+    if st.button("🔄 Forzar Sincronización Real", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     
     try:
-        # CONSULTA FORZADA: Agregamos un filtro que siempre sea cierto 
-        # para obligar a Supabase a procesar la fila de nuevo
-        res = supabase.table("suscriptores_leads").select("*").not_.is_("banca", "null").execute()
+        # CONSULTA AGRESIVA: Traemos todo sin filtros para probar conexión
+        res = supabase.table("suscriptores_leads").select("*").execute()
         leads = res.data
 
-        if not leads or len(leads) == 0:
-            # Mensaje profesional tipo SaaS cuando no hay datos todavía
+        # DIAGNÓSTICO PARA TI (Solo visible si hay un error oculto)
+        if leads is None:
+            st.error("🚨 Supabase respondió con 'None'. Esto suele ser un error de la API o URL incorrecta.")
+            return
+
+        if len(leads) == 0:
+            # Mensaje tipo SaaS cuando no hay datos
             st.markdown("""
                 <div style='text-align: center; padding: 40px; background: white; border-radius: 15px; border: 1px dashed #cbd5e1;'>
                     <p style='color: #64748b; font-size: 18px;'>No hay solicitudes nuevas en este momento.</p>
-                    <p style='color: #94a3b8; font-size: 14px;'>Las afiliaciones de la web aparecerán aquí automáticamente.</p>
+                    <p style='color: #94a3b8; font-size: 14px;'>Si ya enviaste una, revisa las políticas de SELECT en Supabase.</p>
                 </div>
             """, unsafe_allow_html=True)
+            
+            # Mini debug para el programador
+            with st.expander("🛠️ Debug de conexión"):
+                st.write("Conexión: OK")
+                st.write("Tabla: suscriptores_leads")
+                st.write("Filas recibidas: 0")
         else:
             df_leads = pd.DataFrame(leads)
             
             # Limpieza de nombres de columnas
             df_leads.columns = [c.strip() for c in df_leads.columns]
             
-            # Ordenar por fecha
+            # Reordenar y formatear fecha
             if 'fecha' in df_leads.columns:
                 df_leads['fecha'] = pd.to_datetime(df_leads['fecha'], errors='coerce')
                 df_leads = df_leads.sort_values(by='fecha', ascending=False)
@@ -136,18 +146,15 @@ def seccion_solicitudes():
             )
             
             st.divider()
-            # Borrado seguro: borra todo lo que no tenga un email inexistente
             if st.button("🗑️ Vaciar Historial de Leads", type="secondary"):
-                supabase.table("suscriptores_leads").delete().neq("email", "SISTEMA_MASTER_X").execute()
-                st.success("Registros eliminados con éxito.")
-                time.sleep(1)
+                # Borrado seguro: borra todo lo que no coincida con un ID inexistente
+                supabase.table("suscriptores_leads").delete().neq("banca", "DUMMY_BORRADO").execute()
+                st.success("Registros eliminados.")
                 st.rerun()
 
     except Exception as e:
-        st.error(f"🚨 Fallo de conexión")
-        # Mostramos el error real solo si es necesario para depurar
-        with st.expander("Ver detalle técnico del error"):
-            st.code(str(e))
+        st.error(f"🚨 Fallo crítico en la consulta")
+        st.code(str(e))
             
 # =============================================================
 # 5. LÓGICA PRINCIPAL
