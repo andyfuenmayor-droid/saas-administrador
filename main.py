@@ -305,7 +305,47 @@ def seccion_seguimiento():
 # with tab3: seccion_planes()
             
 def check_password():
-    """Verifica credenciales contra la tabla admin_users en Supabase."""
+    """Verifica credenciales contra la tabla admin_users en Supabase con opción de recuperación."""
+    
+    # Inicializamos el estado para la recuperación si no existe
+    if "forgot_pass_mode" not in st.session_state:
+        st.session_state["forgot_pass_mode"] = False
+
+    def recovery_form():
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("""
+                <div style='text-align: center; padding: 25px; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;'>
+                    <h2 style='color: #714B67; margin-bottom: 5px;'>🔑 Restaurar Acceso</h2>
+                    <p style='color: #64748b; font-size: 14px;'>Ingrese su usuario para actualizar la contraseña</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            user_reset = st.text_input("Confirmar Usuario", key="reset_user")
+            new_pass = st.text_input("Nueva Contraseña", type="password", key="new_pass")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("ACTUALIZAR", use_container_width=True, type="primary"):
+                try:
+                    # Verificamos si el usuario existe antes de actualizar
+                    check_user = supabase.table("admin_users").select("*").eq("usuario", user_reset).execute()
+                    
+                    if check_user.data:
+                        supabase.table("admin_users").update({"password_text": new_pass}).eq("usuario", user_reset).execute()
+                        st.success("✅ Contraseña actualizada correctamente")
+                        time.sleep(1.5)
+                        st.session_state["forgot_pass_mode"] = False
+                        st.rerun()
+                    else:
+                        st.error("❌ El usuario no existe en el sistema")
+                except Exception as e:
+                    st.error(f"Error al restaurar: {e}")
+            
+            if c2.button("CANCELAR", use_container_width=True):
+                st.session_state["forgot_pass_mode"] = False
+                st.rerun()
+
     def login_form():
         st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
@@ -321,13 +361,13 @@ def check_password():
             pass_in = st.text_input("Contraseña", type="password", key="input_pass")
             
             if st.button("INICIAR SESIÓN", use_container_width=True, type="primary"):
-                # CONSULTA A SUPABASE
                 try:
                     res = supabase.table("admin_users").select("*").eq("usuario", user_in).eq("password_text", pass_in).execute()
                     
                     if res.data and len(res.data) > 0:
                         st.session_state["password_correct"] = True
                         st.session_state["admin_name"] = res.data[0]['nombre']
+                        st.session_state["user_id_logged"] = res.data[0]['id'] # Guardamos ID para auditoría
                         st.success(f"✅ Bienvenido, {res.data[0]['nombre']}")
                         time.sleep(1)
                         st.rerun()
@@ -335,9 +375,20 @@ def check_password():
                         st.error("❌ Usuario o contraseña incorrectos")
                 except Exception as e:
                     st.error(f"Error de conexión: {e}")
+            
+            # --- BOTÓN OLVIDAR CONTRASEÑA ---
+            st.markdown("<div style='text-align: center; margin-top: 15px;'>", unsafe_allow_html=True)
+            if st.button("¿Olvidaste tu contraseña?", type="secondary", help="Click para restaurar tu clave"):
+                st.session_state["forgot_pass_mode"] = True
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
+    # Lógica de renderizado
     if "password_correct" not in st.session_state:
-        login_form()
+        if st.session_state["forgot_pass_mode"]:
+            recovery_form()
+        else:
+            login_form()
         return False
     return True
     
