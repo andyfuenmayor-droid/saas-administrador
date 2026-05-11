@@ -52,10 +52,58 @@ supabase = init_connection()
 # 3. SEGURIDAD DE ACCESO (LÓGICA COMPLETA DE RECUPERACIÓN)
 # =============================================================
 def check_password():
-    """Verifica credenciales contra la tabla admin_users en Supabase con opción de recuperación."""
+    """Verifica credenciales contra la tabla usuarios en Supabase."""
     
     if "forgot_pass_mode" not in st.session_state:
         st.session_state["forgot_pass_mode"] = False
+
+    def login_form():
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown("""
+                <div style='text-align: center; padding: 30px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);'>
+                    <h1 style='color: #1e293b; font-size: 24px;'>🛡️ Acceso Multi-Usuario</h1>
+                    <p style='color: #64748b;'>Identifíquese para entrar al Control Maestro</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            # Limpiamos espacios en blanco con .strip() para evitar errores de teclado
+            user_in = st.text_input("Usuario", key="input_user").strip()
+            pass_in = st.text_input("Contraseña", type="password", key="input_pass").strip()
+            
+            if st.button("INICIAR SESIÓN", use_container_width=True, type="primary"):
+                try:
+                    # USANDO TUS NOMBRES REALES: Tabla 'usuarios', columnas 'Usuario' y 'Clave'
+                    res = supabase.table("usuarios").select("*").eq("Usuario", user_in).eq("Clave", pass_in).execute()
+                    
+                    if res.data and len(res.data) > 0:
+                        st.session_state["password_correct"] = True
+                        st.session_state["admin_name"] = res.data[0].get('nombre', user_in)
+                        st.session_state["user_id_logged"] = res.data[0].get('id')
+                        st.success(f"✅ Bienvenido")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("❌ Usuario o contraseña incorrectos")
+                except Exception as e:
+                    st.error(f"Error de conexión: {e}")
+            
+            if st.button("¿Olvidaste tu contraseña?", type="secondary"):
+                st.session_state["forgot_pass_mode"] = True
+                st.rerun()
+
+    if "password_correct" not in st.session_state:
+        if st.session_state["forgot_pass_mode"]:
+            # Aquí va tu recovery_form original (asegúrate de que también use la tabla 'usuarios')
+            st.warning("Módulo de recuperación activo") 
+            if st.button("Volver"): 
+                st.session_state["forgot_pass_mode"] = False
+                st.rerun()
+        else:
+            login_form()
+        return False
+    return True
 
     def recovery_form():
         st.markdown("<br><br>", unsafe_allow_html=True)
