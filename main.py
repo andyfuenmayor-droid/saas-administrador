@@ -222,6 +222,55 @@ def init_connection():
 supabase = init_connection()
 
 # =============================================================
+# Helper: Enviar Correo con Credenciales (SMTP)
+# =============================================================
+def enviar_correo_credenciales(email_dest, banca, representante, usuario, password):
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    server_host = st.secrets.get("SMTP_SERVER")
+    port = st.secrets.get("SMTP_PORT")
+    user = st.secrets.get("SMTP_USER")
+    password_smtp = st.secrets.get("SMTP_PASSWORD")
+    sender = st.secrets.get("SMTP_FROM", user)
+    
+    if not (server_host and port and user and password_smtp):
+        return False, "SMTP no configurado en secrets.toml"
+        
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = sender
+        msg['To'] = email_dest
+        msg['Subject'] = f"Credenciales de acceso - {banca}"
+        
+        body = f"""Hola {representante},
+
+Tu SaaS para {banca} ha sido activado con éxito en Multibanca Express.
+
+Aquí tienes tus credenciales de acceso al sistema:
+Usuario/Email: {usuario}
+Contraseña: {password}
+
+¡Bienvenido al sistema!"""
+        
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        
+        port_num = int(port)
+        if port_num == 465:
+            server = smtplib.SMTP_SSL(server_host, port_num, timeout=10)
+        else:
+            server = smtplib.SMTP(server_host, port_num, timeout=10)
+            server.starttls()
+            
+        server.login(user, password_smtp)
+        server.sendmail(sender, email_dest, msg.as_string())
+        server.quit()
+        return True, "Correo enviado con éxito"
+    except Exception as e:
+        return False, f"Error al enviar correo: {str(e)}"
+
+# =============================================================
 # 3. SEGURIDAD DE ACCESO (LÓGICA COMPLETA DE RECUPERACIÓN)
 # =============================================================
 def check_password():
@@ -424,6 +473,49 @@ def seccion_solicitudes():
 def seccion_seguimiento():
     st.markdown("### ⏳ Prospectos en Espera de Activación")
     try:
+        # Si se acaba de activar un SaaS, mostrar pantalla de confirmación con opciones de envío
+        if "nuevo_saas_activado" in st.session_state:
+            info = st.session_state["nuevo_saas_activado"]
+            st.markdown(f"""
+            <div class='odoo-card' style='padding: 22px; border-top: 4px solid #02ab21;'>
+                <h3 style='margin: 0 0 10px 0; color: #02ab21;'>🎉 ¡SaaS '{info['banca']}' activado con éxito!</h3>
+                <p style='color: rgba(255,255,255,0.85); font-size: 14px; margin: 0;'>Las credenciales para el cliente han sido creadas e inicializadas.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("##### 📝 Credenciales Generadas")
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.info(f"**Usuario/Email:** `{info['email']}`")
+            with col_info2:
+                st.info(f"**Contraseña:** `{info['password']}`")
+                
+            st.markdown("##### 📧 Estado de Envío por Correo")
+            if info.get("email_auto_sent"):
+                st.success(f"✅ Correo enviado automáticamente a **{info['email']}**.")
+            else:
+                st.warning(f"⚠️ Correo automático no enviado: {info.get('email_error_detail', 'SMTP no configurado en secrets.toml')}")
+                
+            st.markdown("##### 🟢 Compartir Credenciales")
+            
+            # Preparar mensajes
+            msg_wa = f"¡Hola {info['representante']}! 👋\n\nTu SaaS para *{info['banca']}* ha sido activado con éxito en Multibanca Express. 🚀\n\nAquí tienes tus credenciales de acceso:\n📧 *Usuario/Email:* {info['email']}\n🔑 *Contraseña:* {info['password']}\n\n¡Bienvenido!"
+            msg_mail = f"Hola {info['representante']},\n\nTu SaaS para {info['banca']} ha sido activado con éxito en Multibanca Express.\n\nAquí tienes tus credenciales de acceso al sistema:\nUsuario/Email: {info['email']}\nContraseña: {info['password']}\n\n¡Bienvenido al sistema!"
+            
+            col_sh1, col_sh2, col_sh3 = st.columns(3)
+            with col_sh1:
+                tel_clean = "".join(filter(str.isdigit, str(info.get('telefono', ''))))
+                wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
+                st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
+            with col_sh2:
+                mail_url = f"mailto:{info['email']}?subject={urllib.parse.quote(f'Credenciales de acceso - {info['banca']}')}&body={urllib.parse.quote(msg_mail)}"
+                st.link_button("📧 Enviar por Correo (Manual)", mail_url, use_container_width=True)
+            with col_sh3:
+                if st.button("🏠 Volver a la Lista", use_container_width=True, type="primary"):
+                    del st.session_state["nuevo_saas_activado"]
+                    st.rerun()
+            return
+
         res = supabase.table("leads_seguimiento").select("*").eq("estado_seguimiento", "esperando_pago").execute()
         seguimiento = res.data
         if not seguimiento:
@@ -510,17 +602,26 @@ def seccion_seguimiento():
                                         # 3. Eliminar de la lista de seguimiento
                                         supabase.table("leads_seguimiento").delete().eq("id", lead_sel.get('id')).execute()
                                         
-                                        st.balloons()
-                                        st.success(f"🎉 ¡SaaS '{lead_sel.get('banca')}' activado con éxito!")
-                                        st.markdown(f"""
-                                        ### 📝 Credenciales Generadas
-                                        * **Usuario/Email:** `{email_input.strip()}`
-                                        * **Contraseña:** `{pass_input.strip()}`
+                                        # 4. Intentar enviar correo automático por SMTP
+                                        email_sent, email_err = enviar_correo_credenciales(
+                                            email_dest=email_input.strip(),
+                                            banca=lead_sel.get('banca'),
+                                            representante=real_repr,
+                                            usuario=email_input.strip(),
+                                            password=pass_input.strip()
+                                        )
                                         
-                                        > [!TIP]
-                                        > Copie estas credenciales y envíelas al cliente para que pueda ingresar al sistema.
-                                        """)
-                                        time.sleep(5)
+                                        # 5. Guardar en session state y hacer Rerun
+                                        st.session_state["nuevo_saas_activado"] = {
+                                            "banca": lead_sel.get('banca'),
+                                            "representante": real_repr,
+                                            "email": email_input.strip(),
+                                            "password": pass_input.strip(),
+                                            "telefono": lead_sel.get('telefono', ''),
+                                            "email_auto_sent": email_sent,
+                                            "email_error_detail": email_err
+                                        }
+                                        st.balloons()
                                         st.rerun()
                                     else:
                                         st.error("❌ No se pudo crear el usuario en Supabase Auth.")
@@ -589,6 +690,88 @@ if check_password():
                 if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
                     supabase.table("perfiles").update({"status": nuevo_status, "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')}).eq("email", cliente_sel).execute()
                     st.success("✅ Licencia actualizada"); time.sleep(1); st.rerun()
+
+                st.markdown("---")
+                st.markdown("##### 🔑 Cambiar / Generar Nueva Clave")
+                
+                # Mostrar mensaje de éxito si se cambió la clave
+                if "cambio_clave_exito" in st.session_state:
+                    cc = st.session_state["cambio_clave_exito"]
+                    if cc["email"] == cliente_sel:
+                        st.markdown(f"""
+                        <div class='odoo-card' style='padding: 15px; border-left: 5px solid #02ab21;'>
+                            <h5 style='margin:0; color: #02ab21;'>🔑 Contraseña Actualizada para {cc['banca']}</h5>
+                            <p style='margin:5px 0 10px 0; font-size:13px;'>La clave de <b>{cc['email']}</b> ha sido actualizada a: <code>{cc['password']}</code></p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Preparar mensajes de compartir
+                        msg_wa = f"¡Hola! 👋\n\nSe ha actualizado tu contraseña de acceso para *{cc['banca']}*.\n\n📧 *Usuario/Email:* {cc['email']}\n🔑 *Nueva Contraseña:* {cc['password']}\n\n¡Gracias!"
+                        msg_mail = f"Hola,\n\nSe ha actualizado tu contraseña de acceso para {cc['banca']}.\n\nUsuario: {cc['email']}\nNueva Contraseña: {cc['password']}\n\nSaludos."
+                        
+                        col_sh1, col_sh2, col_sh3 = st.columns(3)
+                        with col_sh1:
+                            tel_clean = "".join(filter(str.isdigit, cc['telefono']))
+                            wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
+                            st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
+                        with col_sh2:
+                            mail_url = f"mailto:{cc['email']}?subject={urllib.parse.quote(f'Nueva contraseña - {cc['banca']}')}&body={urllib.parse.quote(msg_mail)}"
+                            st.link_button("📧 Enviar por Correo", mail_url, use_container_width=True)
+                        with col_sh3:
+                            if st.button("Cerrar Mensaje", use_container_width=True):
+                                del st.session_state["cambio_clave_exito"]
+                                st.rerun()
+                    else:
+                        del st.session_state["cambio_clave_exito"]
+                        st.rerun()
+                
+                # Campos para nueva contraseña
+                if "new_pass_edit_val" not in st.session_state:
+                    st.session_state["new_pass_edit_val"] = ""
+                    
+                col_p1, col_p2 = st.columns([2, 1])
+                with col_p1:
+                    nueva_clave_input = st.text_input(
+                        "Nueva Contraseña (Visible):", 
+                        value=st.session_state["new_pass_edit_val"], 
+                        key="new_pass_edit",
+                        placeholder="Ingrese la nueva contraseña"
+                    )
+                with col_p2:
+                    st.write("") # espaciado
+                    st.write("") # espaciado
+                    if st.button("🎲 Generar Aleatoria", use_container_width=True):
+                        import secrets as py_secrets
+                        import string
+                        chars = string.ascii_letters + string.digits + "!@#"
+                        st.session_state["new_pass_edit_val"] = "".join(py_secrets.choice(chars) for _ in range(12))
+                        st.rerun()
+                
+                whatsapp_dest = st.text_input(
+                    "Teléfono WhatsApp del Cliente (Opcional, con código de país):", 
+                    placeholder="Ej: 584121234567", 
+                    key="new_pass_phone"
+                )
+                
+                if st.button("🔑 ACTUALIZAR CONTRASEÑA EN SISTEMA", type="secondary", use_container_width=True):
+                    if not nueva_clave_input.strip():
+                        st.error("❌ Por favor ingrese o genere una contraseña válida.")
+                    else:
+                        with st.spinner("⏳ Actualizando contraseña en Supabase Auth..."):
+                            try:
+                                supabase.auth.admin.update_user_by_id(datos_cliente['id'], {"password": nueva_clave_input.strip()})
+                                st.session_state["cambio_clave_exito"] = {
+                                    "banca": datos_cliente['nombre_banca'],
+                                    "email": datos_cliente['email'],
+                                    "password": nueva_clave_input.strip(),
+                                    "telefono": whatsapp_dest.strip()
+                                }
+                                st.session_state["new_pass_edit_val"] = ""
+                                st.success("✅ Contraseña actualizada con éxito.")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al cambiar contraseña: {e}")
 
         with tab2: seccion_solicitudes()
         with tab3: seccion_seguimiento()
