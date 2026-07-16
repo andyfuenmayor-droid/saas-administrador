@@ -227,46 +227,6 @@ supabase = init_connection()
 def check_password():
     """Verifica credenciales contra la tabla usuarios en Supabase."""
     
-    if "forgot_pass_mode" not in st.session_state:
-        st.session_state["forgot_pass_mode"] = False
-
-    def recovery_form():
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1.2, 2, 1.2])
-        with col2:
-            with st.form("recovery_form_secure", clear_on_submit=False):
-                st.markdown("""
-                    <div style='text-align: center; padding: 15px 0 25px 0;'>
-                        <h2 style='margin-bottom: 5px; color: #ffffff;'>🔑 Restaurar Acceso</h2>
-                        <p style='color: rgba(255,255,255,0.6); font-size: 14px; margin: 0;'>Ingrese su usuario para actualizar la contraseña</p>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                user_reset = st.text_input("Confirmar Usuario", key="reset_user").strip()
-                new_pass = st.text_input("Nueva Contraseña", type="password", key="new_pass").strip()
-                
-                st.write("")
-                submit_recovery = st.form_submit_button("ACTUALIZAR", use_container_width=True, type="primary")
-                
-                if submit_recovery:
-                    try:
-                        check_user = supabase.table("usuarios").select("*").eq("Usuario", user_reset).execute()
-                        if check_user.data:
-                            supabase.table("usuarios").update({"Clave": new_pass}).eq("Usuario", user_reset).execute()
-                            st.success("✅ Contraseña actualizada correctamente")
-                            time.sleep(1.5)
-                            st.session_state["forgot_pass_mode"] = False
-                            st.rerun()
-                        else:
-                            st.error("❌ El usuario no existe en el sistema")
-                    except Exception as e:
-                        st.error(f"Error al restaurar: {e}")
-            
-            st.write("")
-            if st.button("CANCELAR", use_container_width=True):
-                st.session_state["forgot_pass_mode"] = False
-                st.rerun()
-
     def login_form():
         st.markdown("<br><br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1.2, 2, 1.2])
@@ -299,18 +259,11 @@ def check_password():
                         else:
                             st.error("❌ Usuario o contraseña incorrectos")
                     except Exception as e:
-                        st.error(f"Error de conexión: {e}")
-            
-            st.write("")
-            if st.button("¿Olvidaste tu contraseña?", type="secondary", use_container_width=True):
-                st.session_state["forgot_pass_mode"] = True
-                st.rerun()
+                        print(f"Error de conexión en login: {e}")
+                        st.error("❌ Ocurrió un error de conexión al validar tus credenciales.")
 
     if "password_correct" not in st.session_state:
-        if st.session_state["forgot_pass_mode"]:
-            recovery_form()
-        else:
-            login_form()
+        login_form()
         return False
     return True
 
@@ -336,18 +289,21 @@ def seccion_planes():
     try:
         res = supabase.table("config_planes").select("*").order("costo_base").execute()
         planes_db = res.data
-        with st.expander("➕ Crear o Editar Plan en la Nube", expanded=True):
+        with st.expander("➕ Crear Nuevo Plan", expanded=False):
             col1, col2, col3 = st.columns(3)
-            nombre = col1.text_input("Nombre del Plan")
-            base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0)
-            punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0)
-            desc = st.text_area("Descripción del servicio")
-            if st.button("💾 Guardar en Base de Datos", use_container_width=True):
+            nombre = col1.text_input("Nombre del Nuevo Plan")
+            base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0, key="new_base")
+            punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, key="new_punto")
+            desc = st.text_area("Descripción del servicio", key="new_desc")
+            if st.button("💾 Crear Plan", use_container_width=True):
                 if nombre:
-                    data_plan = {"nombre": nombre, "costo_base": base, "costo_por_punto": punto, "descripcion": desc}
-                    supabase.table("config_planes").upsert(data_plan, on_conflict="nombre").execute()
-                    st.success(f"¡Plan '{nombre}' sincronizado!")
-                    time.sleep(1); st.rerun()
+                    if any(p['nombre'] == nombre for p in planes_db):
+                        st.error(f"Ya existe el plan '{nombre}'. Usa la opción de editar abajo.")
+                    else:
+                        data_plan = {"nombre": nombre, "costo_base": base, "costo_por_punto": punto, "descripcion": desc}
+                        supabase.table("config_planes").insert(data_plan).execute()
+                        st.success(f"¡Plan '{nombre}' creado!")
+                        time.sleep(1); st.rerun()
                 else:
                     st.error("El nombre del plan es obligatorio.")
 
@@ -355,14 +311,32 @@ def seccion_planes():
             st.markdown("#### Planes Activos en Sistema")
             df_p = pd.DataFrame(planes_db)[["nombre", "costo_base", "costo_por_punto", "descripcion"]]
             st.dataframe(df_p, use_container_width=True)
-            with st.expander("🗑️ Zona de Peligro"):
-                plan_a_borrar = st.selectbox("Seleccione plan a eliminar:", [p['nombre'] for p in planes_db])
-                if st.button(f"Eliminar {plan_a_borrar}"):
-                    supabase.table("config_planes").delete().eq("nombre", plan_a_borrar).execute()
-                    st.error(f"Plan {plan_a_borrar} eliminado.")
-                    time.sleep(1); st.rerun()
+            
+            col_edit, col_del = st.columns(2)
+            with col_edit:
+                with st.expander("✏️ Editar Plan", expanded=True):
+                    plan_a_editar = st.selectbox("Seleccione plan a editar:", [p['nombre'] for p in planes_db], key="sel_edit")
+                    if plan_a_editar:
+                        plan_data = next(p for p in planes_db if p["nombre"] == plan_a_editar)
+                        nuevo_base = st.number_input("Costo Base (USD)", min_value=0.0, step=10.0, value=float(plan_data['costo_base']), key="edit_base")
+                        nuevo_punto = st.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, value=float(plan_data['costo_por_punto']), key="edit_punto")
+                        nueva_desc = st.text_area("Descripción", value=plan_data.get('descripcion', ''), key="edit_desc")
+                        if st.button(f"💾 Guardar Cambios", use_container_width=True, type="primary"):
+                            data_update = {"costo_base": nuevo_base, "costo_por_punto": nuevo_punto, "descripcion": nueva_desc}
+                            supabase.table("config_planes").update(data_update).eq("nombre", plan_a_editar).execute()
+                            st.success(f"Plan {plan_a_editar} actualizado.")
+                            time.sleep(1); st.rerun()
+                            
+            with col_del:
+                with st.expander("🗑️ Zona de Peligro", expanded=True):
+                    plan_a_borrar = st.selectbox("Seleccione plan a eliminar:", [p['nombre'] for p in planes_db], key="sel_del")
+                    if st.button(f"Eliminar {plan_a_borrar}"):
+                        supabase.table("config_planes").delete().eq("nombre", plan_a_borrar).execute()
+                        st.error(f"Plan {plan_a_borrar} eliminado.")
+                        time.sleep(1); st.rerun()
     except Exception as e:
-        st.error(f"Error al conectar con la tabla config_planes: {e}")
+        print(f"Error al conectar con la tabla config_planes: {e}")
+        st.error("Error al cargar la configuración de planes de la base de datos.")
 
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
@@ -413,7 +387,8 @@ def seccion_solicitudes():
                             supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
                             st.success(f"✅ Movido a Seguimiento."); time.sleep(1); st.rerun()
     except Exception as e:
-        st.error(f"🚨 Error: {e}")
+        print(f"Error en solicitudes: {e}")
+        st.error("🚨 Ocurrió un error inesperado al gestionar los prospectos.")
 
 def seccion_seguimiento():
     st.markdown("### ⏳ Prospectos en Espera de Activación")
@@ -519,7 +494,8 @@ def seccion_seguimiento():
                                     else:
                                         st.error("❌ No se pudo crear el usuario en Supabase Auth.")
                                 except Exception as e:
-                                    st.error(f"🚨 Error en la activación: {e}")
+                                    print(f"Error en alta/activación: {e}")
+                                    st.error("🚨 Ocurrió un error inesperado al dar de alta el suscriptor.")
                                     
                 with col2:
                     if st.button("❌ Cancelar Solicitud / Eliminar Lead", use_container_width=True):
@@ -529,7 +505,8 @@ def seccion_seguimiento():
                             time.sleep(1)
                             st.rerun()
     except Exception as e:
-        st.error(f"Error en seguimiento: {e}")
+        print(f"Error en seccion_seguimiento: {e}")
+        st.error("Ocurrió un error inesperado al cargar la lista de seguimiento.")
 
 
 # =============================================================
@@ -587,4 +564,5 @@ if check_password():
         with tab4: seccion_planes()
 
     except Exception as e:
-        st.error(f"🚨 Error de datos: {e}")
+        print(f"Error general en dashboard: {e}")
+        st.error("🚨 Ocurrió un error al cargar la información del panel.")
