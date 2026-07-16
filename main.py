@@ -358,15 +358,46 @@ def seccion_solicitudes():
                 lead = opciones[seleccion]
                 lead_id = lead.get('id')
                 st.divider()
-                col_info, col_planes = st.columns([1, 1.2])
+                col_info, col_planes = st.columns([1, 1])
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
-                    st.markdown(f"<div class='odoo-card' style='padding: 20px;'><strong>Empresa:</strong> {lead.get('banca')}<br><strong>Titular:</strong> {lead.get('representante')}<br><strong>Puntos:</strong> {lead.get('puntos_venta')}</div>", unsafe_allow_html=True)
-                    descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
-                    metodos_pago = st.multiselect("💳 Métodos de Pago a ofrecer:", ["Zelle", "PayPal", "Binance (USDT)", "Pago Móvil", "Transferencia ACH", "Efectivo"], default=["Zelle", "Binance (USDT)"])
+                    st.markdown(f"""
+                    <div class='odoo-card' style='padding: 22px; border-top: 4px solid #3b82f6;'>
+                        <h4 style='margin: 0 0 15px 0; color: #3b82f6;'>💼 {lead.get('banca')}</h4>
+                        <table style='width: 100%; border-collapse: collapse;'>
+                            <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px; width: 35%;'>👤 Representante</td>
+                                <td style='padding: 8px 0; font-weight: 500; font-size: 13px;'>{lead.get('representante')}</td>
+                            </tr>
+                            <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px;'>📧 Correo</td>
+                                <td style='padding: 8px 0; font-size: 13px;'>{lead.get('email', 'N/A')}</td>
+                            </tr>
+                            <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px;'>📞 WhatsApp</td>
+                                <td style='padding: 8px 0; font-size: 13px;'>{lead.get('telefono', 'N/A')}</td>
+                            </tr>
+                            <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px;'>📊 Puntos</td>
+                                <td style='padding: 8px 0; font-weight: bold; color: #3b82f6; font-size: 13px;'>{lead.get('puntos_venta')}</td>
+                            </tr>
+                            <tr style='border-bottom: 1px solid rgba(255,255,255,0.05);'>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px;'>📍 Ubicación</td>
+                                <td style='padding: 8px 0; font-size: 13px;'>{lead.get('estado', 'N/A')}</td>
+                            </tr>
+                            <tr>
+                                <td style='padding: 8px 0; color: gray; font-size: 13px;'>🏠 Dirección</td>
+                                <td style='padding: 8px 0; font-size: 13px;'>{lead.get('direccion', 'N/A')}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    """, unsafe_allow_html=True)
                 with col_planes:
                     st.markdown("##### 💰 Cotizador Dinámico")
                     plan_sel = st.selectbox("Plan a Cotizar:", [p['nombre'] for p in planes_disponibles])
+                    descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
+                    metodos_pago = st.multiselect("💳 Métodos de Pago a ofrecer:", ["Zelle", "PayPal", "Binance (USDT)", "Pago Móvil", "Transferencia ACH", "Efectivo"], default=["Zelle", "Binance (USDT)"])
+                    
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     pts = int(lead.get('puntos_venta', 0))
                     total_final = max(0.0, (float(datos_plan['costo_base']) + (pts * float(datos_plan['costo_por_punto']))) - descuento)
