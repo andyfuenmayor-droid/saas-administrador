@@ -508,7 +508,8 @@ def seccion_seguimiento():
                 wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
                 st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
             with col_sh2:
-                mail_url = f"mailto:{info['email']}?subject={urllib.parse.quote(f'Credenciales de acceso - {info['banca']}')}&body={urllib.parse.quote(msg_mail)}"
+                subject_text = f"Credenciales de acceso - {info['banca']}"
+                mail_url = f"mailto:{info['email']}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(msg_mail)}"
                 st.link_button("📧 Enviar por Correo (Manual)", mail_url, use_container_width=True)
             with col_sh3:
                 if st.button("🏠 Volver a la Lista", use_container_width=True, type="primary"):
@@ -715,7 +716,8 @@ if check_password():
                             wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
                             st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
                         with col_sh2:
-                            mail_url = f"mailto:{cc['email']}?subject={urllib.parse.quote(f'Nueva contraseña - {cc['banca']}')}&body={urllib.parse.quote(msg_mail)}"
+                            subject_text = f"Nueva contraseña - {cc['banca']}"
+                            mail_url = f"mailto:{cc['email']}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(msg_mail)}"
                             st.link_button("📧 Enviar por Correo", mail_url, use_container_width=True)
                         with col_sh3:
                             if st.button("Cerrar Mensaje", use_container_width=True):
