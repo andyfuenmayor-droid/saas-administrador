@@ -15,23 +15,196 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS - IDENTIDAD VISUAL "IMAGEN 1" (Limpio + Acento Rojo)
+# Estilos CSS - IDENTIDAD VISUAL PREMIUM GLASSMORPHISM
 st.markdown("""
     <style>
-    .main { background-color: #f8fafc; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-    [data-testid="stHeader"] { background: #1e293b; }
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
     
-    /* Tabs Estilo Imagen 1: Sin fondo, línea roja inferior */
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; background-color: transparent; }
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        color: #f8fafc !important;
+    }
+    input, button, select, textarea {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+    }
+    
+    .main-title, .brand-logo, h1, h2, h3, h4, h5, h6 {
+        font-family: 'Outfit', sans-serif !important;
+        color: #ffffff !important;
+    }
+    
+    [data-testid="stHeader"] {
+        background-color: rgba(15, 23, 42, 0.5) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    /* Fondo Degradado Glassmorphism Oscuro */
+    [data-testid="stAppViewContainer"] {
+        background: radial-gradient(at 0% 0%, rgba(30, 41, 59, 0.9) 0, transparent 50%),
+                    radial-gradient(at 50% 0%, rgba(2, 171, 33, 0.12) 0, transparent 50%),
+                    radial-gradient(at 100% 0%, rgba(3, 105, 161, 0.18) 0, transparent 50%),
+                    radial-gradient(at 50% 100%, rgba(15, 23, 42, 1) 0, transparent 100%),
+                    linear-gradient(135deg, rgba(15, 23, 42, 1) 0%, rgba(8, 15, 30, 1) 100%) !important;
+        background-size: cover !important;
+        min-height: 100vh !important;
+    }
+    
+    /* Control de Sidebar colapsable */
+    [data-testid="stSidebarCollapsedControl"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px !important;
+        color: #ffffff !important;
+    }
+    
+    /* Tarjetas Glassmorphism y Expanders */
+    .odoo-card, .smart-button, .smart-metric, .odoo-metric-container, div[data-testid="stExpander"] {
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 16px !important;
+        backdrop-filter: blur(15px) !important;
+        -webkit-backdrop-filter: blur(15px) !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25) !important;
+        color: #ffffff !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        margin-bottom: 15px !important;
+    }
+    
+    .odoo-card:hover, .smart-button:hover, .smart-metric:hover, .odoo-metric-container:hover, div[data-testid="stExpander"]:hover {
+        transform: translateY(-2px) !important;
+        background: rgba(255, 255, 255, 0.07) !important;
+        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.35) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+    
+    div[data-testid="stExpander"] details summary p {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Formularios y bloques verticales */
+    div[data-testid="stForm"], div[data-testid="stVerticalBlockBorder"] {
+        background: rgba(255, 255, 255, 0.02) !important;
+        border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        border-radius: 14px !important;
+        padding: 15px !important;
+    }
+    
+    /* Métricas Streamlit */
+    .stMetric {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 15px !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        transition: all 0.3s ease !important;
+        min-height: 120px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+    }
+    .stMetric:hover {
+        transform: translateY(-1px) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+    .stMetric [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        font-size: 26px !important;
+    }
+    .stMetric [data-testid="stMetricLabel"] p {
+        color: rgba(255, 255, 255, 0.6) !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+    }
+    
+    /* Tablas y DataFrames */
+    [data-testid="stDataFrame"] {
+        background-color: rgba(15, 23, 42, 0.3) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        padding: 5px !important;
+    }
+    
+    /* Entradas de formulario y etiquetas */
+    .stTextInput > label, .stNumberInput > label, .stSelectbox > label, .stDateInput > label, .stTextArea > label, .stMultiSelect > label {
+        color: rgba(255, 255, 255, 0.95) !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+    }
+    .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div, .stDateInput > div > div > input, .stTextArea > div > div > textarea, .stMultiSelect > div > div > div {
+        background-color: rgba(255, 255, 255, 0.04) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 12px !important;
+        transition: all 0.3s ease !important;
+    }
+    .stTextInput > div > div > input:focus, .stNumberInput > div > div > input:focus, .stSelectbox > div > div > div:focus, .stDateInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
+        border-color: rgba(2, 171, 33, 0.6) !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
+        box-shadow: 0 0 0 3px rgba(2, 171, 33, 0.15) !important;
+    }
+    
+    /* Pestañas (Tabs) estilo cápsula */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border-radius: 14px !important;
+        padding: 6px !important;
+        gap: 6px !important;
+        border-bottom: none !important;
+        margin-bottom: 20px !important;
+    }
     .stTabs [data-baseweb="tab"] {
-        height: 50px; background-color: transparent !important;
-        border-radius: 0px !important; border: none !important;
-        font-size: 16px; color: #1f77b4; font-weight: 500;
+        height: 42px !important;
+        background-color: transparent !important;
+        border-radius: 10px !important;
+        border: none !important;
+        transition: all 0.3s ease !important;
+        padding: 0px 20px !important;
+    }
+    .stTabs [data-baseweb="tab"] p {
+        color: rgba(255, 255, 255, 0.65) !important;
+        font-weight: 600 !important;
+        font-size: 14px !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover p {
+        color: #ffffff !important;
     }
     .stTabs [aria-selected="true"] {
-        color: #FF4B4B !important; 
-        border-bottom: 2px solid #FF4B4B !important;
+        background-color: rgba(2, 171, 33, 0.15) !important;
+        border: 1px solid rgba(2, 171, 33, 0.35) !important;
+    }
+    .stTabs [aria-selected="true"] p {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    .stTabs [data-baseweb="tab-highlight-bar"] {
+        display: none !important;
+    }
+    
+    /* Botones primarios y secundarios */
+    button[kind="primary"], button[kind="secondary"] {
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    button[kind="primary"] {
+        background-color: #02ab21 !important;
+        color: white !important;
+        border: 1px solid rgba(2, 171, 33, 0.4) !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #02941c !important;
+        box-shadow: 0 4px 15px rgba(2, 171, 33, 0.4) !important;
+        transform: translateY(-1px) !important;
     }
     
     /* Ajustes de espaciado */
@@ -57,121 +230,81 @@ def check_password():
     if "forgot_pass_mode" not in st.session_state:
         st.session_state["forgot_pass_mode"] = False
 
-    def login_form():
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown("""
-                <div style='text-align: center; padding: 30px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);'>
-                    <h1 style='color: #1e293b; font-size: 24px;'>🛡️ Acceso Multi-Usuario</h1>
-                    <p style='color: #64748b;'>Identifíquese para entrar al Control Maestro</p>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            # Limpiamos espacios en blanco con .strip() para evitar errores de teclado
-            user_in = st.text_input("Usuario", key="input_user").strip()
-            pass_in = st.text_input("Contraseña", type="password", key="input_pass").strip()
-            
-            if st.button("INICIAR SESIÓN", use_container_width=True, type="primary"):
-                try:
-                    # USANDO TUS NOMBRES REALES: Tabla 'usuarios', columnas 'Usuario' y 'Clave'
-                    res = supabase.table("usuarios").select("*").eq("Usuario", user_in).eq("Clave", pass_in).execute()
-                    
-                    if res.data and len(res.data) > 0:
-                        st.session_state["password_correct"] = True
-                        st.session_state["admin_name"] = res.data[0].get('nombre', user_in)
-                        st.session_state["user_id_logged"] = res.data[0].get('id')
-                        st.success(f"✅ Bienvenido")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ Usuario o contraseña incorrectos")
-                except Exception as e:
-                    st.error(f"Error de conexión: {e}")
-            
-            if st.button("¿Olvidaste tu contraseña?", type="secondary"):
-                st.session_state["forgot_pass_mode"] = True
-                st.rerun()
-
-    if "password_correct" not in st.session_state:
-        if st.session_state["forgot_pass_mode"]:
-            # Aquí va tu recovery_form original (asegúrate de que también use la tabla 'usuarios')
-            st.warning("Módulo de recuperación activo") 
-            if st.button("Volver"): 
-                st.session_state["forgot_pass_mode"] = False
-                st.rerun()
-        else:
-            login_form()
-        return False
-    return True
-
     def recovery_form():
         st.markdown("<br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1.2, 2, 1.2])
         with col2:
-            st.markdown("""
-                <div style='text-align: center; padding: 25px; background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;'>
-                    <h2 style='color: #714B67; margin-bottom: 5px;'>🔑 Restaurar Acceso</h2>
-                    <p style='color: #64748b; font-size: 14px;'>Ingrese su usuario para actualizar la contraseña</p>
-                </div>
-            """, unsafe_allow_html=True)
+            with st.form("recovery_form_secure", clear_on_submit=False):
+                st.markdown("""
+                    <div style='text-align: center; padding: 15px 0 25px 0;'>
+                        <h2 style='margin-bottom: 5px; color: #ffffff;'>🔑 Restaurar Acceso</h2>
+                        <p style='color: rgba(255,255,255,0.6); font-size: 14px; margin: 0;'>Ingrese su usuario para actualizar la contraseña</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                user_reset = st.text_input("Confirmar Usuario", key="reset_user").strip()
+                new_pass = st.text_input("Nueva Contraseña", type="password", key="new_pass").strip()
+                
+                st.write("")
+                submit_recovery = st.form_submit_button("ACTUALIZAR", use_container_width=True, type="primary")
+                
+                if submit_recovery:
+                    try:
+                        check_user = supabase.table("usuarios").select("*").eq("Usuario", user_reset).execute()
+                        if check_user.data:
+                            supabase.table("usuarios").update({"Clave": new_pass}).eq("Usuario", user_reset).execute()
+                            st.success("✅ Contraseña actualizada correctamente")
+                            time.sleep(1.5)
+                            st.session_state["forgot_pass_mode"] = False
+                            st.rerun()
+                        else:
+                            st.error("❌ El usuario no existe en el sistema")
+                    except Exception as e:
+                        st.error(f"Error al restaurar: {e}")
             
-            user_reset = st.text_input("Confirmar Usuario", key="reset_user")
-            new_pass = st.text_input("Nueva Contraseña", type="password", key="new_pass")
-            
-            c1, c2 = st.columns(2)
-            if c1.button("ACTUALIZAR", use_container_width=True, type="primary"):
-                try:
-                    check_user = supabase.table("admin_users").select("*").eq("usuario", user_reset).execute()
-                    if check_user.data:
-                        supabase.table("admin_users").update({"password_text": new_pass}).eq("usuario", user_reset).execute()
-                        st.success("✅ Contraseña actualizada correctamente")
-                        time.sleep(1.5)
-                        st.session_state["forgot_pass_mode"] = False
-                        st.rerun()
-                    else:
-                        st.error("❌ El usuario no existe en el sistema")
-                except Exception as e:
-                    st.error(f"Error al restaurar: {e}")
-            
-            if c2.button("CANCELAR", use_container_width=True):
+            st.write("")
+            if st.button("CANCELAR", use_container_width=True):
                 st.session_state["forgot_pass_mode"] = False
                 st.rerun()
 
     def login_form():
         st.markdown("<br><br><br>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1.2, 2, 1.2])
         with col2:
-            st.markdown("""
-                <div style='text-align: center; padding: 30px; background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);'>
-                    <h1 style='color: #1e293b; font-size: 24px;'>🛡️ Acceso Multi-Usuario</h1>
-                    <p style='color: #64748b;'>Identifíquese para entrar al Control Maestro</p>
-                </div>
-            """, unsafe_allow_html=True)
+            with st.form("login_form_secure", clear_on_submit=False):
+                st.markdown("""
+                    <div style='text-align: center; padding: 15px 0 25px 0;'>
+                        <h1 style='font-size: 24px; margin-bottom: 8px; color: #ffffff;'>🛡️ Acceso Multi-Usuario</h1>
+                        <p style='color: rgba(255,255,255,0.6); font-size: 14px; margin: 0;'>Identifíquese para entrar al Control Maestro</p>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                user_in = st.text_input("Usuario", key="input_user").strip()
+                pass_in = st.text_input("Contraseña", type="password", key="input_pass").strip()
+                
+                st.write("")
+                submit_login = st.form_submit_button("INICIAR SESIÓN", use_container_width=True, type="primary")
+                
+                if submit_login:
+                    try:
+                        res = supabase.table("usuarios").select("*").eq("Usuario", user_in).eq("Clave", pass_in).execute()
+                        
+                        if res.data and len(res.data) > 0:
+                            st.session_state["password_correct"] = True
+                            st.session_state["admin_name"] = res.data[0].get('nombre', user_in)
+                            st.session_state["user_id_logged"] = res.data[0].get('id')
+                            st.success(f"✅ Bienvenido")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ Usuario o contraseña incorrectos")
+                    except Exception as e:
+                        st.error(f"Error de conexión: {e}")
             
-            user_in = st.text_input("Usuario", key="input_user")
-            pass_in = st.text_input("Contraseña", type="password", key="input_pass")
-            
-            if st.button("INICIAR SESIÓN", use_container_width=True, type="primary"):
-                try:
-                    res = supabase.table("admin_users").select("*").eq("usuario", user_in).eq("password_text", pass_in).execute()
-                    if res.data and len(res.data) > 0:
-                        st.session_state["password_correct"] = True
-                        st.session_state["admin_name"] = res.data[0]['nombre']
-                        st.session_state["user_id_logged"] = res.data[0]['id']
-                        st.success(f"✅ Bienvenido, {res.data[0]['nombre']}")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("❌ Usuario o contraseña incorrectos")
-                except Exception as e:
-                    st.error(f"Error de conexión: {e}")
-            
-            st.markdown("<div style='text-align: center; margin-top: 15px;'>", unsafe_allow_html=True)
-            if st.button("¿Olvidaste tu contraseña?", type="secondary"):
+            st.write("")
+            if st.button("¿Olvidaste tu contraseña?", type="secondary", use_container_width=True):
                 st.session_state["forgot_pass_mode"] = True
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
     if "password_correct" not in st.session_state:
         if st.session_state["forgot_pass_mode"]:
@@ -254,7 +387,7 @@ def seccion_solicitudes():
                 col_info, col_planes = st.columns([1, 1.2])
                 with col_info:
                     st.markdown("##### 📄 Datos del Expediente")
-                    st.markdown(f"<div style='background: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;'><strong>Empresa:</strong> {lead.get('banca')}<br><strong>Titular:</strong> {lead.get('representante')}<br><strong>Puntos:</strong> {lead.get('puntos_venta')}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='odoo-card' style='padding: 20px;'><strong>Empresa:</strong> {lead.get('banca')}<br><strong>Titular:</strong> {lead.get('representante')}<br><strong>Puntos:</strong> {lead.get('puntos_venta')}</div>", unsafe_allow_html=True)
                     descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
                     metodos_pago = st.multiselect("💳 Métodos de Pago a ofrecer:", ["Zelle", "PayPal", "Binance (USDT)", "Pago Móvil", "Transferencia ACH", "Efectivo"], default=["Zelle", "Binance (USDT)"])
                 with col_planes:
@@ -263,7 +396,7 @@ def seccion_solicitudes():
                     datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
                     pts = int(lead.get('puntos_venta', 0))
                     total_final = max(0.0, (float(datos_plan['costo_base']) + (pts * float(datos_plan['costo_por_punto']))) - descuento)
-                    st.markdown(f"<div style='background: #f0f9ff; padding: 15px; border-radius: 10px; border-left: 5px solid #0369a1;'><strong style='font-size: 16px;'>Propuesta: {plan_sel}</strong><h2 style='margin: 5px 0; color: #0369a1;'>${total_final:,.2f} USD</h2></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='odoo-card' style='padding: 20px; border-left: 5px solid #02ab21 !important; background: linear-gradient(135deg, rgba(2, 171, 33, 0.1) 0%, rgba(2, 171, 33, 0.02) 100%) !important;'><strong style='font-size: 16px; color: #ffffff;'>Propuesta: {plan_sel}</strong><h2 style='margin: 5px 0; color: #02ab21;'>${total_final:,.2f} USD</h2></div>", unsafe_allow_html=True)
                     
                     tel_raw = str(lead.get('telefono', ''))
                     tel_clean = "".join(filter(str.isdigit, tel_raw))
@@ -273,7 +406,9 @@ def seccion_solicitudes():
                     
                     if st.button("🚀 Mover a Seguimiento (Cotizado)", key=f"move_{lead_id}", use_container_width=True, type="primary"):
                         with st.spinner("Moviendo..."):
-                            data_seg = {"banca": lead.get('banca'), "representante": lead.get('representante'), "telefono": lead.get('telefono'), "puntos_venta": pts, "plan_cotizado": plan_sel, "total_cotizado": total_final, "estado_seguimiento": "esperando_pago"}
+                            # Guardamos el email en el campo representante usando un delimitador
+                            repr_con_email = f"{lead.get('representante')} | {lead.get('email')}"
+                            data_seg = {"banca": lead.get('banca'), "representante": repr_con_email, "telefono": lead.get('telefono'), "puntos_venta": pts, "plan_cotizado": plan_sel, "total_cotizado": total_final, "estado_seguimiento": "esperando_pago"}
                             supabase.table("leads_seguimiento").insert(data_seg).execute()
                             supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
                             st.success(f"✅ Movido a Seguimiento."); time.sleep(1); st.rerun()
@@ -286,22 +421,116 @@ def seccion_seguimiento():
         res = supabase.table("leads_seguimiento").select("*").eq("estado_seguimiento", "esperando_pago").execute()
         seguimiento = res.data
         if not seguimiento:
-            st.info("No hay clientes pendientes de pago.")
+            st.info("💡 No hay clientes pendientes de pago.")
         else:
-            df_seg = pd.DataFrame(seguimiento)
-            st.dataframe(df_seg[["banca", "representante", "plan_cotizado", "total_cotizado", "telefono"]], use_container_width=True)
-            cliente_seg = st.selectbox("Seleccionar para activar:", [f"{s['banca']} - {s['representante']}" for s in seguimiento])
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✅ DAR DE ALTA (ACTIVAR)", use_container_width=True):
-                    st.balloons(); st.success("¡Cliente activado con éxito!")
-            with col2:
-                if st.button("❌ Cancelar Solicitud", use_container_width=True):
-                    sel_id = next(s['id'] for s in seguimiento if f"{s['banca']} - {s['representante']}" == cliente_seg)
-                    supabase.table("leads_seguimiento").delete().eq("id", sel_id).execute()
-                    st.rerun()
+            # Mostramos un DataFrame limpio y legible
+            datos_mostrar = []
+            for s in seguimiento:
+                repr_val = s.get('representante', '')
+                real_repr = repr_val.split(" | ")[0] if " | " in repr_val else repr_val
+                email_val = repr_val.split(" | ")[1] if " | " in repr_val else "N/A"
+                datos_mostrar.append({
+                    "Banca": s.get('banca'),
+                    "Representante": real_repr,
+                    "Email": email_val,
+                    "Plan Cotizado": s.get('plan_cotizado'),
+                    "Total Cotizado": s.get('total_cotizado'),
+                    "WhatsApp": s.get('telefono')
+                })
+            df_mostrar = pd.DataFrame(datos_mostrar)
+            st.dataframe(df_mostrar, use_container_width=True)
+            
+            # Selectbox para gestionar
+            opciones = {f"{s['banca']} - {s['representante'].split(' | ')[0] if ' | ' in s['representante'] else s['representante']}": s for s in seguimiento}
+            cliente_seg = st.selectbox("🎯 Seleccione un Prospecto para activar:", options=opciones.keys())
+            
+            if cliente_seg:
+                lead_sel = opciones[cliente_seg]
+                repr_val = lead_sel.get('representante', '')
+                real_repr = repr_val.split(" | ")[0] if " | " in repr_val else repr_val
+                email_val = repr_val.split(" | ")[1] if " | " in repr_val else ""
+                
+                st.divider()
+                st.markdown("##### ⚙️ Configuración de Acceso para el Nuevo Suscriptor")
+                
+                col_c1, col_c2 = st.columns(2)
+                with col_c1:
+                    email_input = st.text_input("📧 Correo de Acceso:", value=email_val, key="acc_email")
+                with col_c2:
+                    # Generamos una contraseña por defecto basada en el WhatsApp
+                    default_pass = f"ME{str(lead_sel.get('telefono', ''))[-6:]}" if lead_sel.get('telefono') else "ME2026!"
+                    pass_input = st.text_input("🔑 Contraseña Temporal:", value=default_pass, key="acc_pass")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ DAR DE ALTA (CREAR Y ACTIVAR)", use_container_width=True, type="primary"):
+                        if not email_input.strip() or not pass_input.strip():
+                            st.warning("⚠️ El correo y la contraseña son obligatorios.")
+                        else:
+                            with st.spinner("⏳ Creando credenciales e inicializando perfil..."):
+                                try:
+                                    # 1. Crear usuario en auth.users de Supabase
+                                    from supabase import create_client
+                                    temp_client = create_client(
+                                        st.secrets["SUPABASE_URL"], 
+                                        st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
+                                    )
+                                    auth_res = temp_client.auth.sign_up({
+                                        "email": email_input.strip(),
+                                        "password": pass_input.strip()
+                                    })
+                                    
+                                    if auth_res.user:
+                                        u_id = auth_res.user.id
+                                        
+                                        # 2. Insertar perfil del suscriptor
+                                        fecha_ini = datetime.now().isoformat()
+                                        fecha_venc = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
+                                        profile_data = {
+                                            "id": u_id,
+                                            "email": email_input.strip(),
+                                            "nombre_banca": lead_sel.get('banca'),
+                                            "plan": lead_sel.get('plan_cotizado'),
+                                            "status": "activo",
+                                            "fecha_inicio": fecha_ini,
+                                            "fecha_vencimiento": fecha_venc,
+                                            "role": "admin",
+                                            "rol": "contador",
+                                            "limite_agencias": int(lead_sel.get('puntos_venta', 5)),
+                                            "estado": "activo"
+                                        }
+                                        supabase.table("perfiles").insert(profile_data).execute()
+                                        
+                                        # 3. Eliminar de la lista de seguimiento
+                                        supabase.table("leads_seguimiento").delete().eq("id", lead_sel.get('id')).execute()
+                                        
+                                        st.balloons()
+                                        st.success(f"🎉 ¡SaaS '{lead_sel.get('banca')}' activado con éxito!")
+                                        st.markdown(f"""
+                                        ### 📝 Credenciales Generadas
+                                        * **Usuario/Email:** `{email_input.strip()}`
+                                        * **Contraseña:** `{pass_input.strip()}`
+                                        
+                                        > [!TIP]
+                                        > Copie estas credenciales y envíelas al cliente para que pueda ingresar al sistema.
+                                        """)
+                                        time.sleep(5)
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ No se pudo crear el usuario en Supabase Auth.")
+                                except Exception as e:
+                                    st.error(f"🚨 Error en la activación: {e}")
+                                    
+                with col2:
+                    if st.button("❌ Cancelar Solicitud / Eliminar Lead", use_container_width=True):
+                        with st.spinner("Eliminando..."):
+                            supabase.table("leads_seguimiento").delete().eq("id", lead_sel.get('id')).execute()
+                            st.error("Solicitud eliminada.")
+                            time.sleep(1)
+                            st.rerun()
     except Exception as e:
         st.error(f"Error en seguimiento: {e}")
+
 
 # =============================================================
 # 5. LÓGICA PRINCIPAL (FULL WIDTH + MULTI-USUARIO + 4 TABS)
