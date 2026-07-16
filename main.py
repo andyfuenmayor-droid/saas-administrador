@@ -582,6 +582,19 @@ def seccion_seguimiento():
                                     if auth_res.user:
                                         u_id = auth_res.user.id
                                         
+                                        # Guardar el teléfono en el usuario auth usando el admin api para seguridad
+                                        telefono_val = lead_sel.get('telefono', '')
+                                        if telefono_val:
+                                            try:
+                                                temp_client.auth.admin.update_user_by_id(u_id, {
+                                                    "phone": telefono_val.strip(),
+                                                    "user_metadata": {
+                                                        "telefono": telefono_val.strip()
+                                                    }
+                                                })
+                                            except Exception as ex:
+                                                print(f"Error guardando telefono en auth: {ex}")
+                                                
                                         # 2. Insertar perfil del suscriptor
                                         fecha_ini = datetime.now().isoformat()
                                         fecha_venc = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
@@ -695,6 +708,15 @@ if check_password():
                 st.markdown("---")
                 st.markdown("##### 🔑 Cambiar / Generar Nueva Clave")
                 
+                # Intentar obtener teléfono actual del cliente de Supabase Auth
+                user_phone = ""
+                try:
+                    user_auth_res = supabase.auth.admin.get_user_by_id(datos_cliente['id'])
+                    user_auth = user_auth_res.user
+                    user_phone = user_auth.phone or (user_auth.user_metadata.get('telefono') if user_auth.user_metadata else '')
+                except Exception as e:
+                    pass
+
                 # Mostrar mensaje de éxito si se cambió la clave
                 if "cambio_clave_exito" in st.session_state:
                     cc = st.session_state["cambio_clave_exito"]
@@ -712,7 +734,7 @@ if check_password():
                         
                         col_sh1, col_sh2, col_sh3 = st.columns(3)
                         with col_sh1:
-                            tel_clean = "".join(filter(str.isdigit, cc['telefono']))
+                            tel_clean = "".join(filter(str.isdigit, str(cc['telefono'])))
                             wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
                             st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
                         with col_sh2:
@@ -728,14 +750,13 @@ if check_password():
                         st.rerun()
                 
                 # Campos para nueva contraseña
-                if "new_pass_edit_val" not in st.session_state:
-                    st.session_state["new_pass_edit_val"] = ""
+                if "new_pass_edit" not in st.session_state:
+                    st.session_state["new_pass_edit"] = ""
                     
                 col_p1, col_p2 = st.columns([2, 1])
                 with col_p1:
                     nueva_clave_input = st.text_input(
                         "Nueva Contraseña (Visible):", 
-                        value=st.session_state["new_pass_edit_val"], 
                         key="new_pass_edit",
                         placeholder="Ingrese la nueva contraseña"
                     )
@@ -746,29 +767,46 @@ if check_password():
                         import secrets as py_secrets
                         import string
                         chars = string.ascii_letters + string.digits + "!@#"
-                        st.session_state["new_pass_edit_val"] = "".join(py_secrets.choice(chars) for _ in range(12))
+                        st.session_state["new_pass_edit"] = "".join(py_secrets.choice(chars) for _ in range(12))
                         st.rerun()
                 
-                whatsapp_dest = st.text_input(
-                    "Teléfono WhatsApp del Cliente (Opcional, con código de país):", 
-                    placeholder="Ej: 584121234567", 
-                    key="new_pass_phone"
-                )
+                # Manejo del teléfono de WhatsApp (read-only si ya existe)
+                if user_phone:
+                    st.info(f"📱 **Teléfono del Cliente Registrado:** `{user_phone}` (Se usará este número para enviar WhatsApp de forma segura)")
+                    whatsapp_dest = user_phone
+                else:
+                    st.warning("⚠️ El cliente no tiene un teléfono registrado en el sistema.")
+                    whatsapp_dest = st.text_input(
+                        "Ingrese el Teléfono WhatsApp del Cliente (Se guardará en el perfil del cliente para evitar fraudes):", 
+                        placeholder="Ej: 584121234567", 
+                        key="new_pass_phone"
+                    )
                 
                 if st.button("🔑 ACTUALIZAR CONTRASEÑA EN SISTEMA", type="secondary", use_container_width=True):
                     if not nueva_clave_input.strip():
                         st.error("❌ Por favor ingrese o genere una contraseña válida.")
+                    elif not user_phone and not whatsapp_dest.strip():
+                        st.error("❌ Debe ingresar un número de teléfono de WhatsApp para registrar al cliente.")
                     else:
                         with st.spinner("⏳ Actualizando contraseña en Supabase Auth..."):
                             try:
-                                supabase.auth.admin.update_user_by_id(datos_cliente['id'], {"password": nueva_clave_input.strip()})
+                                # Actualizar contraseña en Auth
+                                update_payload = {"password": nueva_clave_input.strip()}
+                                
+                                # Si no tenía teléfono registrado, guardarlo en auth
+                                if not user_phone and whatsapp_dest.strip():
+                                    update_payload["phone"] = whatsapp_dest.strip()
+                                    update_payload["user_metadata"] = {"telefono": whatsapp_dest.strip()}
+                                
+                                supabase.auth.admin.update_user_by_id(datos_cliente['id'], update_payload)
+                                
                                 st.session_state["cambio_clave_exito"] = {
                                     "banca": datos_cliente['nombre_banca'],
                                     "email": datos_cliente['email'],
                                     "password": nueva_clave_input.strip(),
                                     "telefono": whatsapp_dest.strip()
                                 }
-                                st.session_state["new_pass_edit_val"] = ""
+                                st.session_state["new_pass_edit"] = "" # Limpiar widget
                                 st.success("✅ Contraseña actualizada con éxito.")
                                 time.sleep(1)
                                 st.rerun()
