@@ -460,9 +460,19 @@ def seccion_solicitudes():
                     
                     if st.button("🚀 Mover a Seguimiento (Cotizado)", key=f"move_{lead_id}", use_container_width=True, type="primary"):
                         with st.spinner("Moviendo..."):
-                            # Guardamos el email en el campo representante usando un delimitador
-                            repr_con_email = f"{lead.get('representante')} | {lead.get('email')}"
-                            data_seg = {"banca": lead.get('banca'), "representante": repr_con_email, "telefono": lead.get('telefono'), "puntos_venta": pts, "plan_cotizado": plan_sel, "total_cotizado": total_final, "estado_seguimiento": "esperando_pago"}
+                            # Guardamos todos los datos de forma estructurada en la tabla leads_seguimiento
+                            data_seg = {
+                                "banca": lead.get('banca'),
+                                "representante": lead.get('representante'),
+                                "email": lead.get('email'),
+                                "telefono": lead.get('telefono'),
+                                "puntos_venta": pts,
+                                "plan_cotizado": plan_sel,
+                                "total_cotizado": total_final,
+                                "estado_seguimiento": "esperando_pago",
+                                "estado": lead.get('estado'),
+                                "direccion": lead.get('direccion')
+                            }
                             supabase.table("leads_seguimiento").insert(data_seg).execute()
                             supabase.table("suscriptores_leads").delete().eq("id", lead_id).execute()
                             st.success(f"✅ Movido a Seguimiento."); time.sleep(1); st.rerun()
@@ -526,28 +536,44 @@ def seccion_seguimiento():
             datos_mostrar = []
             for s in seguimiento:
                 repr_val = s.get('representante', '')
-                real_repr = repr_val.split(" | ")[0] if " | " in repr_val else repr_val
-                email_val = repr_val.split(" | ")[1] if " | " in repr_val else "N/A"
+                if " | " in repr_val:
+                    real_repr = repr_val.split(" | ")[0]
+                    email_val = repr_val.split(" | ")[1]
+                else:
+                    real_repr = repr_val
+                    email_val = s.get('email', 'N/A') or 'N/A'
+                
                 datos_mostrar.append({
                     "Banca": s.get('banca'),
                     "Representante": real_repr,
                     "Email": email_val,
                     "Plan Cotizado": s.get('plan_cotizado'),
                     "Total Cotizado": s.get('total_cotizado'),
-                    "WhatsApp": s.get('telefono')
+                    "WhatsApp": s.get('telefono'),
+                    "Ubicación": s.get('estado', 'N/A'),
+                    "Dirección": s.get('direccion', 'N/A')
                 })
             df_mostrar = pd.DataFrame(datos_mostrar)
             st.dataframe(df_mostrar, use_container_width=True)
             
             # Selectbox para gestionar
-            opciones = {f"{s['banca']} - {s['representante'].split(' | ')[0] if ' | ' in s['representante'] else s['representante']}": s for s in seguimiento}
+            opciones = {}
+            for s in seguimiento:
+                repr_val = s.get('representante', '')
+                real_repr = repr_val.split(" | ")[0] if " | " in repr_val else repr_val
+                opciones[f"{s['banca']} - {real_repr}"] = s
+                
             cliente_seg = st.selectbox("🎯 Seleccione un Prospecto para activar:", options=opciones.keys())
             
             if cliente_seg:
                 lead_sel = opciones[cliente_seg]
                 repr_val = lead_sel.get('representante', '')
-                real_repr = repr_val.split(" | ")[0] if " | " in repr_val else repr_val
-                email_val = repr_val.split(" | ")[1] if " | " in repr_val else ""
+                if " | " in repr_val:
+                    real_repr = repr_val.split(" | ")[0]
+                    email_val = repr_val.split(" | ")[1]
+                else:
+                    real_repr = repr_val
+                    email_val = lead_sel.get('email') or ""
                 
                 st.divider()
                 st.markdown("##### ⚙️ Configuración de Acceso para el Nuevo Suscriptor")
@@ -595,7 +621,7 @@ def seccion_seguimiento():
                                             except Exception as ex:
                                                 print(f"Error guardando telefono en auth: {ex}")
                                                 
-                                        # 2. Insertar perfil del suscriptor
+                                        # 2. Insertar perfil del suscriptor con todos los datos
                                         fecha_ini = datetime.now().isoformat()
                                         fecha_venc = (datetime.now() + timedelta(days=365)).strftime('%Y-%m-%d')
                                         profile_data = {
@@ -609,7 +635,10 @@ def seccion_seguimiento():
                                             "role": "admin",
                                             "rol": "contador",
                                             "limite_agencias": int(lead_sel.get('puntos_venta', 5)),
-                                            "estado": "activo"
+                                            "representante": real_repr,
+                                            "telefono": lead_sel.get('telefono'),
+                                            "direccion": lead_sel.get('direccion'),
+                                            "estado": lead_sel.get('estado')  # Guardamos la ubicación geográfica (estado) aquí
                                         }
                                         supabase.table("perfiles").insert(profile_data).execute()
                                         
@@ -683,7 +712,24 @@ if check_password():
 
         with tab1:
             st.markdown("#### 📋 Gestión de Clientes Activos")
-            st.dataframe(df_clientes[["email", "nombre_banca", "status", "fecha_vencimiento"]], use_container_width=True, height=300)
+            
+            # Formateamos las columnas para mostrar en el dataframe si existen
+            columnas_mostrar = ["email", "nombre_banca", "representante", "telefono", "estado", "direccion", "status", "fecha_vencimiento"]
+            cols_validas = [c for c in columnas_mostrar if c in df_clientes.columns]
+            
+            column_names_map = {
+                "email": "Email",
+                "nombre_banca": "Banca/Negocio",
+                "representante": "Representante",
+                "telefono": "WhatsApp/Teléfono",
+                "estado": "Ubicación (Estado)",
+                "direccion": "Dirección",
+                "status": "Estatus Licencia",
+                "fecha_vencimiento": "Fecha Vencimiento"
+            }
+            
+            df_mostrar_clientes = df_clientes[cols_validas].rename(columns=column_names_map)
+            st.dataframe(df_mostrar_clientes, use_container_width=True, height=300)
             with st.expander("✏️ Editar Licencia", expanded=True):
                 emails_list = df_clientes["email"].tolist()
                 cliente_sel = st.selectbox("Buscar por Email:", emails_list)
