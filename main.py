@@ -752,115 +752,35 @@ if check_password():
                     st.success("✅ Licencia actualizada"); time.sleep(1); st.rerun()
 
                 st.markdown("---")
-                st.markdown("##### 🔑 Cambiar / Generar Nueva Clave")
+                st.markdown("##### 🔑 Cambiar Contraseña")
                 
-                # Intentar obtener teléfono actual del cliente del perfil o de Supabase Auth
-                user_phone = datos_cliente.get('telefono') or ""
-                if not user_phone:
-                    try:
-                        user_auth_res = supabase.auth.admin.get_user_by_id(datos_cliente['id'])
-                        user_auth = user_auth_res.user
-                        user_phone = user_auth.phone or (user_auth.user_metadata.get('telefono') if user_auth.user_metadata else '')
-                    except Exception as e:
-                        pass
-
-                # Mostrar mensaje de éxito si se cambió la clave
-                if "cambio_clave_exito" in st.session_state:
-                    cc = st.session_state["cambio_clave_exito"]
-                    if cc["email"] == cliente_sel:
-                        st.markdown(f"""
-                        <div class='odoo-card' style='padding: 15px; border-left: 5px solid #02ab21;'>
-                            <h5 style='margin:0; color: #02ab21;'>🔑 Contraseña Actualizada para {cc['banca']}</h5>
-                            <p style='margin:5px 0 10px 0; font-size:13px;'>La clave de <b>{cc['email']}</b> ha sido actualizada a: <code>{cc['password']}</code></p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Preparar mensajes de compartir
-                        msg_wa = f"¡Hola! 👋\n\nSe ha actualizado tu contraseña de acceso para *{cc['banca']}*.\n\n📧 *Usuario/Email:* {cc['email']}\n🔑 *Nueva Contraseña:* {cc['password']}\n\n¡Gracias!"
-                        msg_mail = f"Hola,\n\nSe ha actualizado tu contraseña de acceso para {cc['banca']}.\n\nUsuario: {cc['email']}\nNueva Contraseña: {cc['password']}\n\nSaludos."
-                        
-                        col_sh1, col_sh2, col_sh3 = st.columns(3)
-                        with col_sh1:
-                            tel_clean = "".join(filter(str.isdigit, str(cc['telefono'])))
-                            wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
-                            st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
-                        with col_sh2:
-                            subject_text = f"Nueva contraseña - {cc['banca']}"
-                            mail_url = f"mailto:{cc['email']}?subject={urllib.parse.quote(subject_text)}&body={urllib.parse.quote(msg_mail)}"
-                            st.link_button("📧 Enviar por Correo", mail_url, use_container_width=True)
-                        with col_sh3:
-                            if st.button("Cerrar Mensaje", use_container_width=True):
-                                del st.session_state["cambio_clave_exito"]
-                                st.rerun()
-                    else:
-                        del st.session_state["cambio_clave_exito"]
-                        st.rerun()
-                
-                # Campos para nueva contraseña
-                if "new_pass_edit" not in st.session_state:
-                    st.session_state["new_pass_edit"] = ""
-                    
-                col_p1, col_p2 = st.columns([2, 1])
+                col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     nueva_clave_input = st.text_input(
-                        "Nueva Contraseña (Visible):", 
-                        key="new_pass_edit",
+                        "Nueva Contraseña:", 
+                        type="password",
+                        key="new_pass_edit_field",
                         placeholder="Ingrese la nueva contraseña"
                     )
                 with col_p2:
-                    st.write("") # espaciado
-                    st.write("") # espaciado
-                    if st.button("🎲 Generar Aleatoria", use_container_width=True):
-                        import secrets as py_secrets
-                        import string
-                        chars = string.ascii_letters + string.digits + "!@#"
-                        st.session_state["new_pass_edit"] = "".join(py_secrets.choice(chars) for _ in range(12))
-                        st.rerun()
-                
-                # Manejo del teléfono de WhatsApp (read-only si ya existe)
-                if user_phone:
-                    st.info(f"📱 **Teléfono del Cliente Registrado:** `{user_phone}` (Se usará este número para enviar WhatsApp de forma segura)")
-                    whatsapp_dest = user_phone
-                else:
-                    whatsapp_dest = st.text_input(
-                        "Ingrese el Teléfono WhatsApp del Cliente (Se guardará en el perfil del cliente para evitar fraudes):", 
-                        placeholder="Ej: 584121234567", 
-                        key="new_pass_phone"
+                    confirmar_clave_input = st.text_input(
+                        "Confirmar Contraseña:", 
+                        type="password",
+                        key="new_pass_confirm_field",
+                        placeholder="Repita la contraseña"
                     )
-                    if not whatsapp_dest.strip():
-                        st.warning("⚠️ El cliente no tiene un teléfono registrado en el sistema.")
                 
                 if st.button("🔑 ACTUALIZAR CONTRASEÑA EN SISTEMA", type="secondary", use_container_width=True):
                     if not nueva_clave_input.strip():
-                        st.error("❌ Por favor ingrese o genere una contraseña válida.")
-                    elif not user_phone and not whatsapp_dest.strip():
-                        st.error("❌ Debe ingresar un número de teléfono de WhatsApp para registrar al cliente.")
+                        st.error("❌ Por favor ingrese una contraseña válida.")
+                    elif nueva_clave_input.strip() != confirmar_clave_input.strip():
+                        st.error("❌ Las contraseñas no coinciden.")
                     else:
                         with st.spinner("⏳ Actualizando contraseña en Supabase Auth..."):
                             try:
-                                # Actualizar contraseña en Auth
-                                update_payload = {"password": nueva_clave_input.strip()}
-                                
-                                # Si no tenía teléfono registrado, guardarlo en auth y perfiles
-                                if not user_phone and whatsapp_dest.strip():
-                                    update_payload["phone"] = whatsapp_dest.strip()
-                                    update_payload["user_metadata"] = {"telefono": whatsapp_dest.strip()}
-                                    try:
-                                        supabase.table("perfiles").update({"telefono": whatsapp_dest.strip()}).eq("id", datos_cliente['id']).execute()
-                                    except Exception as db_err:
-                                        print(f"Error actualizando telefono en perfiles: {db_err}")
-                                
-                                supabase.auth.admin.update_user_by_id(datos_cliente['id'], update_payload)
-                                
-                                st.session_state["cambio_clave_exito"] = {
-                                    "banca": datos_cliente['nombre_banca'],
-                                    "email": datos_cliente['email'],
-                                    "password": nueva_clave_input.strip(),
-                                    "telefono": whatsapp_dest.strip()
-                                }
-                                st.session_state["new_pass_edit"] = "" # Limpiar widget
+                                supabase.auth.admin.update_user_by_id(datos_cliente['id'], {"password": nueva_clave_input.strip()})
                                 st.success("✅ Contraseña actualizada con éxito.")
-                                time.sleep(1)
+                                time.sleep(1.5)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error al cambiar contraseña: {e}")
