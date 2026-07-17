@@ -757,29 +757,25 @@ if check_password():
                 # Mostrar mensaje de éxito si se cambió la clave con opción de WhatsApp
                 if "cambio_clave_exito" in st.session_state:
                     cc = st.session_state["cambio_clave_exito"]
-                    if cc["email"] == cliente_sel:
-                        st.markdown(f"""
-                        <div class='odoo-card' style='padding: 15px; border-left: 5px solid #02ab21;'>
-                            <h5 style='margin:0; color: #02ab21;'>🔑 Contraseña Actualizada para {cc['banca']}</h5>
-                            <p style='margin:5px 0 10px 0; font-size:13px;'>La clave de <b>{cc['email']}</b> ha sido actualizada a: <code>{cc['password']}</code></p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # Preparar mensaje de WhatsApp
-                        msg_wa = f"¡Hola! 👋\n\nSe ha actualizado tu contraseña de acceso para *{cc['banca']}*.\n\n📧 *Usuario/Email:* {cc['email']}\n🔑 *Nueva Contraseña:* {cc['password']}\n\n¡Gracias!"
-                        
-                        col_sh1, col_sh2 = st.columns(2)
-                        with col_sh1:
-                            tel_clean = "".join(filter(str.isdigit, str(cc.get('telefono', ''))))
-                            wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
-                            st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
-                        with col_sh2:
-                            if st.button("Cerrar Mensaje", use_container_width=True):
-                                del st.session_state["cambio_clave_exito"]
-                                st.rerun()
-                    else:
-                        del st.session_state["cambio_clave_exito"]
-                        st.rerun()
+                    st.markdown(f"""
+                    <div class='odoo-card' style='padding: 15px; border-left: 5px solid #02ab21;'>
+                        <h5 style='margin:0; color: #02ab21;'>🔑 Contraseña Actualizada para {cc['banca']}</h5>
+                        <p style='margin:5px 0 10px 0; font-size:13px;'>La clave de <b>{cc['email']}</b> ha sido actualizada a: <code>{cc['password']}</code></p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Preparar mensaje de WhatsApp
+                    msg_wa = f"¡Hola! 👋\n\nSe ha actualizado tu contraseña de acceso para *{cc['banca']}*.\n\n📧 *Usuario/Email:* {cc['email']}\n🔑 *Nueva Contraseña:* {cc['password']}\n\n¡Gracias!"
+                    
+                    col_sh1, col_sh2 = st.columns(2)
+                    with col_sh1:
+                        tel_clean = "".join(filter(str.isdigit, str(cc.get('telefono', ''))))
+                        wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
+                        st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
+                    with col_sh2:
+                        if st.button("Cerrar Mensaje", use_container_width=True):
+                            del st.session_state["cambio_clave_exito"]
+                            st.rerun()
                 
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
