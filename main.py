@@ -754,6 +754,33 @@ if check_password():
                 st.markdown("---")
                 st.markdown("##### 🔑 Cambiar Contraseña")
                 
+                # Mostrar mensaje de éxito si se cambió la clave con opción de WhatsApp
+                if "cambio_clave_exito" in st.session_state:
+                    cc = st.session_state["cambio_clave_exito"]
+                    if cc["email"] == cliente_sel:
+                        st.markdown(f"""
+                        <div class='odoo-card' style='padding: 15px; border-left: 5px solid #02ab21;'>
+                            <h5 style='margin:0; color: #02ab21;'>🔑 Contraseña Actualizada para {cc['banca']}</h5>
+                            <p style='margin:5px 0 10px 0; font-size:13px;'>La clave de <b>{cc['email']}</b> ha sido actualizada a: <code>{cc['password']}</code></p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Preparar mensaje de WhatsApp
+                        msg_wa = f"¡Hola! 👋\n\nSe ha actualizado tu contraseña de acceso para *{cc['banca']}*.\n\n📧 *Usuario/Email:* {cc['email']}\n🔑 *Nueva Contraseña:* {cc['password']}\n\n¡Gracias!"
+                        
+                        col_sh1, col_sh2 = st.columns(2)
+                        with col_sh1:
+                            tel_clean = "".join(filter(str.isdigit, str(cc.get('telefono', ''))))
+                            wa_url = f"https://wa.me/{tel_clean}?text={urllib.parse.quote(msg_wa)}" if tel_clean else f"https://wa.me/?text={urllib.parse.quote(msg_wa)}"
+                            st.link_button("🟢 Enviar por WhatsApp", wa_url, use_container_width=True)
+                        with col_sh2:
+                            if st.button("Cerrar Mensaje", use_container_width=True):
+                                del st.session_state["cambio_clave_exito"]
+                                st.rerun()
+                    else:
+                        del st.session_state["cambio_clave_exito"]
+                        st.rerun()
+                
                 col_p1, col_p2 = st.columns(2)
                 with col_p1:
                     nueva_clave_input = st.text_input(
@@ -778,9 +805,26 @@ if check_password():
                     else:
                         with st.spinner("⏳ Actualizando contraseña en Supabase Auth..."):
                             try:
+                                # Buscar el teléfono para el envío
+                                tel_dest = datos_cliente.get('telefono') or ""
+                                if not tel_dest:
+                                    try:
+                                        user_auth_res = supabase.auth.admin.get_user_by_id(datos_cliente['id'])
+                                        user_auth = user_auth_res.user
+                                        tel_dest = user_auth.phone or (user_auth.user_metadata.get('telefono') if user_auth.user_metadata else '')
+                                    except:
+                                        pass
+                                
                                 supabase.auth.admin.update_user_by_id(datos_cliente['id'], {"password": nueva_clave_input.strip()})
+                                
+                                st.session_state["cambio_clave_exito"] = {
+                                    "banca": datos_cliente['nombre_banca'],
+                                    "email": datos_cliente['email'],
+                                    "password": nueva_clave_input.strip(),
+                                    "telefono": tel_dest
+                                }
                                 st.success("✅ Contraseña actualizada con éxito.")
-                                time.sleep(1.5)
+                                time.sleep(1)
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Error al cambiar contraseña: {e}")
