@@ -754,14 +754,15 @@ if check_password():
                 st.markdown("---")
                 st.markdown("##### 🔑 Cambiar / Generar Nueva Clave")
                 
-                # Intentar obtener teléfono actual del cliente de Supabase Auth
-                user_phone = ""
-                try:
-                    user_auth_res = supabase.auth.admin.get_user_by_id(datos_cliente['id'])
-                    user_auth = user_auth_res.user
-                    user_phone = user_auth.phone or (user_auth.user_metadata.get('telefono') if user_auth.user_metadata else '')
-                except Exception as e:
-                    pass
+                # Intentar obtener teléfono actual del cliente del perfil o de Supabase Auth
+                user_phone = datos_cliente.get('telefono') or ""
+                if not user_phone:
+                    try:
+                        user_auth_res = supabase.auth.admin.get_user_by_id(datos_cliente['id'])
+                        user_auth = user_auth_res.user
+                        user_phone = user_auth.phone or (user_auth.user_metadata.get('telefono') if user_auth.user_metadata else '')
+                    except Exception as e:
+                        pass
 
                 # Mostrar mensaje de éxito si se cambió la clave
                 if "cambio_clave_exito" in st.session_state:
@@ -821,12 +822,13 @@ if check_password():
                     st.info(f"📱 **Teléfono del Cliente Registrado:** `{user_phone}` (Se usará este número para enviar WhatsApp de forma segura)")
                     whatsapp_dest = user_phone
                 else:
-                    st.warning("⚠️ El cliente no tiene un teléfono registrado en el sistema.")
                     whatsapp_dest = st.text_input(
                         "Ingrese el Teléfono WhatsApp del Cliente (Se guardará en el perfil del cliente para evitar fraudes):", 
                         placeholder="Ej: 584121234567", 
                         key="new_pass_phone"
                     )
+                    if not whatsapp_dest.strip():
+                        st.warning("⚠️ El cliente no tiene un teléfono registrado en el sistema.")
                 
                 if st.button("🔑 ACTUALIZAR CONTRASEÑA EN SISTEMA", type="secondary", use_container_width=True):
                     if not nueva_clave_input.strip():
@@ -839,10 +841,14 @@ if check_password():
                                 # Actualizar contraseña en Auth
                                 update_payload = {"password": nueva_clave_input.strip()}
                                 
-                                # Si no tenía teléfono registrado, guardarlo en auth
+                                # Si no tenía teléfono registrado, guardarlo en auth y perfiles
                                 if not user_phone and whatsapp_dest.strip():
                                     update_payload["phone"] = whatsapp_dest.strip()
                                     update_payload["user_metadata"] = {"telefono": whatsapp_dest.strip()}
+                                    try:
+                                        supabase.table("perfiles").update({"telefono": whatsapp_dest.strip()}).eq("id", datos_cliente['id']).execute()
+                                    except Exception as db_err:
+                                        print(f"Error actualizando telefono en perfiles: {db_err}")
                                 
                                 supabase.auth.admin.update_user_by_id(datos_cliente['id'], update_payload)
                                 
