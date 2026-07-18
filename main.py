@@ -225,12 +225,24 @@ def init_connection():
         url = os.getenv("SUPABASE_URL")
 
     key = None
+    # 1. Intentamos obtener la clave de servicio (Service Key) primero de secrets
     try:
-        key = st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets.get("SUPABASE_KEY")
+        key = st.secrets.get("SUPABASE_SERVICE_KEY")
     except Exception:
         pass
+    
+    # 2. Si no está en secrets, la buscamos en las variables de entorno
     if not key:
-        key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+        key = os.getenv("SUPABASE_SERVICE_KEY")
+
+    # 3. Si no hay clave de servicio, buscamos la clave anónima (en secrets o env)
+    if not key:
+        try:
+            key = st.secrets.get("SUPABASE_KEY")
+        except Exception:
+            pass
+    if not key:
+        key = os.getenv("SUPABASE_KEY")
 
     return create_client(url, key)
 
