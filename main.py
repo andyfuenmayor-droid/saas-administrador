@@ -301,6 +301,7 @@ def check_password():
                 
                 if submit_login:
                     try:
+                        print(f"DEBUG LOGIN: user='{user_in}', pass='{pass_in}'", flush=True)
                         res = supabase.table("usuarios").select("*").eq("Usuario", user_in).eq("Clave", pass_in).execute()
                         
                         if res.data and len(res.data) > 0:
