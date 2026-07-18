@@ -323,10 +323,7 @@ def check_password():
                 
                 if submit_login:
                     try:
-                        print(f"DEBUG CLIENT: url='{supabase.supabase_url}', key_end='{supabase.supabase_key[-10:]}'", flush=True)
-                        print(f"DEBUG LOGIN: user='{user_in}', pass='{pass_in}'", flush=True)
                         res = supabase.table("usuarios").select("*").eq("Usuario", user_in).eq("Clave", pass_in).execute()
-                        print(f"DEBUG RESULT: {res.data}", flush=True)
                         
                         if res.data and len(res.data) > 0:
                             st.session_state["password_correct"] = True
