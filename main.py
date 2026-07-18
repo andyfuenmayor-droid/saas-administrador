@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from supabase import create_client
 import pandas as pd
 from datetime import datetime, timedelta
@@ -215,8 +216,12 @@ st.markdown("""
 # 2. CONEXIÓN A SUPABASE (MODO ADMIN SEGURO)
 @st.cache_resource
 def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
+    except Exception:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_KEY"))
     return create_client(url, key)
 
 supabase = init_connection()
