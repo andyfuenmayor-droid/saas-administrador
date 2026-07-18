@@ -1,0 +1,26 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            cd /home/saas-administrador
+            git restore main.py
+            git pull origin main
+            docker build -t gestion-saas-pro .
+            docker stop gestion-app || true
+            docker rm gestion-app || true
+            docker run -d --name gestion-app -p 8502:8501 --env-file .env --restart unless-stopped gestion-saas-pro
