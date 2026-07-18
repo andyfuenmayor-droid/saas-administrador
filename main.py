@@ -216,12 +216,22 @@ st.markdown("""
 # 2. CONEXIÓN A SUPABASE (MODO ADMIN SEGURO)
 @st.cache_resource
 def init_connection():
+    url = None
     try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets.get("SUPABASE_SERVICE_KEY", st.secrets["SUPABASE_KEY"])
+        url = st.secrets.get("SUPABASE_URL")
     except Exception:
+        pass
+    if not url:
         url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_SERVICE_KEY", os.getenv("SUPABASE_KEY"))
+
+    key = None
+    try:
+        key = st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets.get("SUPABASE_KEY")
+    except Exception:
+        pass
+    if not key:
+        key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+
     return create_client(url, key)
 
 supabase = init_connection()
