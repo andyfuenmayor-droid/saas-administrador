@@ -10,7 +10,7 @@ import urllib.parse
 # 1. CONFIGURACIÓN DE PÁGINA (ESTILO SAAS + IMAGEN 1)
 # =============================================================
 st.set_page_config(
-    page_title="ME - Control Maestro", 
+    page_title="ME - Gestión SaaS", 
     page_icon="💎", 
     layout="wide",
     initial_sidebar_state="expanded"
@@ -310,8 +310,7 @@ def check_password():
             with st.form("login_form_secure", clear_on_submit=False):
                 st.markdown("""
                     <div style='text-align: center; padding: 15px 0 25px 0;'>
-                        <h1 style='font-size: 24px; margin-bottom: 8px; color: #ffffff;'>🛡️ Acceso Multi-Usuario</h1>
-                        <p style='color: rgba(255,255,255,0.6); font-size: 14px; margin: 0;'>Identifíquese para entrar al Control Maestro</p>
+                        <h1 style='font-size: 24px; margin-bottom: 8px; color: #ffffff;'>🛡️ Gestión SaaS</h1>
                     </div>
                 """, unsafe_allow_html=True)
                 
