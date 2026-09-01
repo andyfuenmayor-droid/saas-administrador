@@ -369,22 +369,39 @@ TODOS_LOS_MODULOS_CMS = [
     "Gastos Administrativos", "Cierre ", "Ajustes"
 ]
 
-PLANES_MODULOS_DEFAULT = {
-    "basico": [
-        "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
-        "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
-        "Venta Real", "Rep. Agencia", "Caja Maestra",
-        "Cierre ", "Ajustes"
-    ],
-    "profesional": [
-        "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
-        "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
-        "Venta Real", "Rep. Agencia", "Caja Maestra",
-        "Pagos a Operador", "Venta Operadora", "Reporte Operadora", "Cierre Operadora", "Config. Proveedores",
-        "Cierre ", "Ajustes"
-    ],
-    "elite": list(TODOS_LOS_MODULOS_CMS)
+PLANES_ESTANDAR = {
+    "Básico (SaaS)": {
+        "costo_base": 150.0,
+        "costo_por_punto": 5.0,
+        "descripcion": "Gestión operativa completa de agencias hasta Caja Maestra.",
+        "modulos_default": [
+            "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
+            "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
+            "Venta Real", "Rep. Agencia", "Caja Maestra",
+            "Cierre ", "Ajustes"
+        ]
+    },
+    "Profesional": {
+        "costo_base": 250.0,
+        "costo_por_punto": 8.0,
+        "descripcion": "Gestión integral de Agencias, Operadoras y Proveedores.",
+        "modulos_default": [
+            "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
+            "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
+            "Venta Real", "Rep. Agencia", "Caja Maestra",
+            "Pagos a Operador", "Venta Operadora", "Reporte Operadora", "Cierre Operadora", "Config. Proveedores",
+            "Cierre ", "Ajustes"
+        ]
+    },
+    "Elite": {
+        "costo_base": 500.0,
+        "costo_por_punto": 12.0,
+        "descripcion": "Control total sin límites: Incluye Auditoría Híbrida y Gastos Administrativos.",
+        "modulos_default": list(TODOS_LOS_MODULOS_CMS)
+    }
 }
+
+PLANES_OFICIALES = list(PLANES_ESTANDAR.keys())
 
 def normalizar_nombre_plan_saas(plan_val):
     if not plan_val:
@@ -400,7 +417,12 @@ def normalizar_nombre_plan_saas(plan_val):
 
 def obtener_modulos_plan_db(plan_nombre):
     plan_norm = normalizar_nombre_plan_saas(plan_nombre)
-    default_mods = PLANES_MODULOS_DEFAULT.get(plan_norm, PLANES_MODULOS_DEFAULT["elite"])
+    default_mods = PLANES_ESTANDAR.get(plan_nombre, {}).get("modulos_default")
+    if not default_mods:
+        if plan_norm == "basico": default_mods = PLANES_ESTANDAR["Básico (SaaS)"]["modulos_default"]
+        elif plan_norm == "profesional": default_mods = PLANES_ESTANDAR["Profesional"]["modulos_default"]
+        else: default_mods = PLANES_ESTANDAR["Elite"]["modulos_default"]
+        
     try:
         res = supabase.table("config_sistema").select("valor").eq("parametro", f"plan_modulos_{plan_norm}").execute()
         if res.data and len(res.data) > 0:
@@ -418,7 +440,6 @@ def guardar_modulos_plan_db(plan_nombre, modulos_lista):
         plan_norm = normalizar_nombre_plan_saas(plan_nombre)
         val_json = json.dumps(modulos_lista)
         
-        # Buscar ID de un admin en perfiles
         admin_res = supabase.table("perfiles").select("id").eq("role", "admin").limit(1).execute()
         admin_id = admin_res.data[0]["id"] if admin_res.data else "f300c8ad-ddd5-4953-a267-d5b3eb80ce39"
         
@@ -434,190 +455,68 @@ def guardar_modulos_plan_db(plan_nombre, modulos_lista):
         return False
 
 def seccion_planes():
-    st.markdown("### ⚙️ Configuración Maestra de Planes (Base de Datos)")
-    st.caption("Administre los planes comerciales, costos, descripciones y los módulos del menú autorizados en Operadora-CMS.")
+    st.markdown("### ⚙️ Matriz de Módulos y Permisos por Plan SaaS")
+    st.caption("Configure de forma dinámica qué módulos del menú de **Operadora-CMS** están habilitados para cada uno de los 3 planes oficiales. Los cambios se sincronizan en tiempo real.")
 
-    try:
-        res = supabase.table("config_planes").select("*").order("costo_base").execute()
-        planes_db = res.data or []
+    # Resumen de Planes Oficiales
+    df_resumen = []
+    for nom, datos in PLANES_ESTANDAR.items():
+        mods = obtener_modulos_plan_db(nom)
+        df_resumen.append({
+            "Plan": nom,
+            "Costo Base": f"${datos['costo_base']:,.2f} USD",
+            "Costo / Punto": f"${datos['costo_por_punto']:,.2f} USD",
+            "Total Módulos Activos": f"{len(mods)} / {len(TODOS_LOS_MODULOS_CMS)} módulos",
+            "Descripción": datos["descripcion"]
+        })
+    st.dataframe(pd.DataFrame(df_resumen), use_container_width=True, hide_index=True)
 
-        # 1. EXPANDER: CREAR NUEVO PLAN
-        with st.expander("➕ Crear Nuevo Plan", expanded=False):
-            with st.form("form_nuevo_plan", clear_on_submit=True):
-                col1, col2, col3 = st.columns(3)
-                nuevo_nom = col1.text_input("Nombre del Nuevo Plan", placeholder="ej: Plan Corporativo").strip()
-                nuevo_base = col2.number_input("Costo Base (USD)", min_value=0.0, step=10.0, key="new_base")
-                nuevo_punto = col3.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, key="new_punto")
-                nueva_desc = st.text_area("Descripción del servicio", placeholder="Detalles de lo que incluye...", key="new_desc")
-                
-                st.markdown("##### 🔑 Seleccione los Módulos Permitidos en Operadora-CMS:")
-                modulos_nuevo = st.multiselect(
-                    "Módulos autorizados para este nuevo plan (Inicio se incluye automáticamente):",
-                    options=TODOS_LOS_MODULOS_CMS,
-                    default=TODOS_LOS_MODULOS_CMS,
-                    key="new_plan_mods"
-                )
-                
-                btn_crear_plan = st.form_submit_button("🚀 CREAR PLAN", use_container_width=True, type="primary")
+    st.markdown("---")
+    
+    # Editor Modular de Módulos por Plan
+    plan_edit_sel = st.selectbox(
+        "Seleccione el Plan a Configurar:",
+        options=PLANES_OFICIALES,
+        key="sel_matriz_plan"
+    )
 
-                if btn_crear_plan:
-                    if nuevo_nom:
-                        if any(str(p.get('nombre', '')).strip().lower() == nuevo_nom.lower() for p in planes_db):
-                            st.error(f"⚠️ Ya existe un plan con el nombre '{nuevo_nom}'.")
-                        else:
-                            data_plan = {
-                                "nombre": nuevo_nom,
-                                "costo_base": nuevo_base,
-                                "costo_por_punto": nuevo_punto,
-                                "descripcion": nueva_desc,
-                                "fecha_actualizacion": datetime.now().isoformat()
-                            }
-                            supabase.table("config_planes").insert(data_plan).execute()
-                            final_mods = ["Inicio"] + [m for m in modulos_nuevo if m != "Inicio"]
-                            guardar_modulos_plan_db(nuevo_nom, final_mods)
-                            st.success(f"🎉 ¡Plan '{nuevo_nom}' creado exitosamente con sus módulos!")
-                            time.sleep(1)
-                            st.rerun()
-                    else:
-                        st.error("⚠️ El nombre del plan es obligatorio.")
+    if plan_edit_sel:
+        mods_actuales = obtener_modulos_plan_db(plan_edit_sel)
+        info_plan = PLANES_ESTANDAR[plan_edit_sel]
 
-        if planes_db:
-            st.markdown("---")
-            st.markdown("#### 📋 Planes Activos en el Sistema")
+        with st.container(border=True):
+            st.markdown(f"#### 🛠️ Configurar Módulos para: `{plan_edit_sel}`")
+            st.info(f"ℹ️ {info_plan['descripcion']}")
             
-            # Formatear tabla resumen
-            df_display = []
-            for p in planes_db:
-                p_nom = p.get('nombre', '')
-                mods_p = obtener_modulos_plan_db(p_nom)
-                df_display.append({
-                    "Plan": p_nom,
-                    "Costo Base (USD)": f"${float(p.get('costo_base', 0)):,.2f}",
-                    "Costo / Punto (USD)": f"${float(p.get('costo_por_punto', 0)):,.2f}",
-                    "Total Módulos": f"{len(mods_p)} módulos",
-                    "Descripción": p.get('descripcion', '')
-                })
-            st.dataframe(pd.DataFrame(df_display)[["Plan", "Costo Base (USD)", "Costo / Punto (USD)", "Total Módulos", "Descripción"]], use_container_width=True, hide_index=True)
-
-            st.markdown("---")
-            
-            # 2. SECCIÓN EDITAR Y ELIMINAR IDENTIFICADA POR ID ÚNICO
-            st.subheader("⚙️ Modificar o Eliminar un Plan")
-            
-            mapa_planes = {str(p['id']): p for p in planes_db}
-            plan_id_sel = st.selectbox(
-                "Seleccione el plan que desea modificar o eliminar:",
-                options=list(mapa_planes.keys()),
-                format_func=lambda x: f"{mapa_planes[x]['nombre']} — Base: ${float(mapa_planes[x].get('costo_base', 0)):,.2f} | Punto: ${float(mapa_planes[x].get('costo_por_punto', 0)):,.2f}",
-                key="sel_plan_id_gestion"
+            sel_mods = st.multiselect(
+                "Módulos permitidos en Operadora-CMS para este plan:",
+                options=TODOS_LOS_MODULOS_CMS,
+                default=[m for m in mods_actuales if m in TODOS_LOS_MODULOS_CMS],
+                key=f"matriz_mods_{plan_edit_sel}"
             )
 
-            if plan_id_sel and plan_id_sel in mapa_planes:
-                plan_data = mapa_planes[plan_id_sel]
-                nombre_actual = plan_data.get("nombre", "")
-                current_mods = obtener_modulos_plan_db(nombre_actual)
-
-                col_mod, col_del = st.columns([6, 4], gap="large")
-
-                with col_mod:
-                    with st.container(border=True):
-                        st.markdown(f"#### ✏️ Modificar: `{nombre_actual}`")
-                        
-                        edit_nombre = st.text_input("Nombre del Plan (Modificable)", value=nombre_actual, key=f"inp_nom_{plan_id_sel}")
-                        
-                        c_p1, c_p2 = st.columns(2)
-                        edit_base = c_p1.number_input("Costo Base (USD)", min_value=0.0, step=10.0, value=float(plan_data.get('costo_base', 0)), key=f"inp_base_{plan_id_sel}")
-                        edit_punto = c_p2.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, value=float(plan_data.get('costo_por_punto', 0)), key=f"inp_punto_{plan_id_sel}")
-                        
-                        edit_desc = st.text_area("Descripción del Servicio", value=plan_data.get('descripcion', '') or '', key=f"inp_desc_{plan_id_sel}")
-                        
-                        st.markdown("**🔑 Módulos Permitidos en Operadora-CMS:**")
-                        edit_mods = st.multiselect(
-                            "Seleccione los módulos incluidos en este plan:",
-                            options=TODOS_LOS_MODULOS_CMS,
-                            default=[m for m in current_mods if m in TODOS_LOS_MODULOS_CMS],
-                            key=f"inp_mods_{plan_id_sel}"
-                        )
-
-                        if st.button("💾 GUARDAR CAMBIOS DEL PLAN", use_container_width=True, type="primary", key=f"btn_save_{plan_id_sel}"):
-                            nuevo_nombre_clean = edit_nombre.strip()
-                            if not nuevo_nombre_clean:
-                                st.error("⚠️ El nombre del plan no puede quedar vacío.")
-                            else:
-                                try:
-                                    data_update = {
-                                        "nombre": nuevo_nombre_clean,
-                                        "costo_base": edit_base,
-                                        "costo_por_punto": edit_punto,
-                                        "descripcion": edit_desc,
-                                        "fecha_actualizacion": datetime.now().isoformat()
-                                    }
-                                    supabase.table("config_planes").update(data_update).eq("id", plan_id_sel).execute()
-                                    
-                                    # Si el nombre cambió, migrar configuraciones en perfiles
-                                    if nuevo_nombre_clean != nombre_actual:
-                                        try:
-                                            supabase.table("perfiles").update({"plan": nuevo_nombre_clean}).eq("plan", nombre_actual).execute()
-                                        except Exception:
-                                            pass
-                                        
-                                    final_mods = ["Inicio"] + [m for m in edit_mods if m != "Inicio"]
-                                    guardar_modulos_plan_db(nuevo_nombre_clean, final_mods)
-                                    
-                                    st.success(f"✨ ¡Plan '{nuevo_nombre_clean}' y sus módulos actualizados con éxito!")
-                                    time.sleep(1)
-                                    st.rerun()
-                                except Exception as ex:
-                                    st.error(f"🚨 Error al actualizar plan: {ex}")
-
-                with col_del:
-                    with st.container(border=True):
-                        st.markdown("#### 🗑️ Eliminar Plan")
-                        st.warning(f"⚠️ Estás a punto de eliminar el plan **{nombre_actual}**.")
-                        
-                        # Contar clientes en este plan
-                        try:
-                            res_clients = supabase.table("perfiles").select("email").eq("plan", nombre_actual).execute()
-                            total_asoc = len(res_clients.data or [])
-                        except Exception:
-                            total_asoc = 0
-                            
-                        if total_asoc > 0:
-                            st.info(f"ℹ️ Hay **{total_asoc}** suscriptor(es) asignado(s) a este plan actualmente.")
-                        
-                        confirma_del = st.checkbox(
-                            f"Confirmo que deseo eliminar definitivamente '{nombre_actual}'",
-                            key=f"chk_del_{plan_id_sel}"
-                        )
-                        
-                        if st.button(f"🗑️ ELIMINAR PLAN DEFINITIVAMENTE", use_container_width=True, disabled=not confirma_del, key=f"btn_del_{plan_id_sel}"):
-                            try:
-                                # 1. Eliminar de config_planes por id UUID
-                                supabase.table("config_planes").delete().eq("id", plan_id_sel).execute()
-                                
-                                # 2. Limpiar parámetro de módulos en config_sistema
-                                plan_norm = normalizar_nombre_plan_saas(nombre_actual)
-                                supabase.table("config_sistema").delete().eq("parametro", f"plan_modulos_{plan_norm}").execute()
-                                
-                                st.success(f"🗑️ Plan '{nombre_actual}' eliminado correctamente de la base de datos.")
-                                time.sleep(1)
-                                st.rerun()
-                            except Exception as ex:
-                                st.error(f"🚨 Error al eliminar plan: {ex}")
-    except Exception as e:
-        print(f"Error al conectar con la tabla config_planes: {e}")
-        st.error(f"Error al cargar la configuración de planes: {e}")
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("💾 GUARDAR CONFIGURACIÓN DE MÓDULOS", use_container_width=True, type="primary", key=f"btn_save_m_{plan_edit_sel}"):
+                    final_mods = ["Inicio"] + [m for m in sel_mods if m != "Inicio"]
+                    if guardar_modulos_plan_db(plan_edit_sel, final_mods):
+                        st.success(f"✨ ¡Módulos del plan '{plan_edit_sel}' actualizados con éxito!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Error al guardar en base de datos.")
+            with col_b2:
+                if st.button("🔄 Restablecer Módulos de Fábrica", use_container_width=True, key=f"btn_rst_m_{plan_edit_sel}"):
+                    def_mods = info_plan["modulos_default"]
+                    guardar_modulos_plan_db(plan_edit_sel, def_mods)
+                    st.success(f"🔄 Plan '{plan_edit_sel}' restablecido a valores iniciales.")
+                    time.sleep(1)
+                    st.rerun()
 
 
 def seccion_solicitudes():
     st.markdown("### 🚀 Gestión Estratégica de Leads")
     try:
-        res_planes = supabase.table("config_planes").select("*").execute()
-        planes_disponibles = res_planes.data
-        if not planes_disponibles:
-            st.warning("⚠️ Configura los planes primero en la pestaña correspondiente.")
-            return
-
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
         if not leads:
@@ -665,11 +564,11 @@ def seccion_solicitudes():
                     """, unsafe_allow_html=True)
                 with col_planes:
                     st.markdown("##### 💰 Cotizador Dinámico")
-                    plan_sel = st.selectbox("Plan a Cotizar:", [p['nombre'] for p in planes_disponibles])
+                    plan_sel = st.selectbox("Plan a Cotizar:", PLANES_OFICIALES)
                     descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
                     metodos_pago = st.multiselect("💳 Métodos de Pago a ofrecer:", ["Zelle", "PayPal", "Binance (USDT)", "Pago Móvil", "Transferencia ACH", "Efectivo"], default=["Zelle", "Binance (USDT)"])
                     
-                    datos_plan = next(p for p in planes_disponibles if p["nombre"] == plan_sel)
+                    datos_plan = PLANES_ESTANDAR[plan_sel]
                     pts = int(lead.get('puntos_venta', 0))
                     total_final = max(0.0, (float(datos_plan['costo_base']) + (pts * float(datos_plan['costo_por_punto']))) - descuento)
                     st.markdown(f"<div class='odoo-card' style='padding: 20px; border-left: 5px solid #02ab21 !important; background: linear-gradient(135deg, rgba(2, 171, 33, 0.1) 0%, rgba(2, 171, 33, 0.02) 100%) !important;'><strong style='font-size: 16px; color: #ffffff;'>Propuesta: {plan_sel}</strong><h2 style='margin: 5px 0; color: #02ab21;'>${total_final:,.2f} USD</h2></div>", unsafe_allow_html=True)
@@ -682,7 +581,6 @@ def seccion_solicitudes():
                     
                     if st.button("🚀 Mover a Seguimiento (Cotizado)", key=f"move_{lead_id}", use_container_width=True, type="primary"):
                         with st.spinner("Moviendo..."):
-                            # Guardamos todos los datos de forma estructurada en la tabla leads_seguimiento
                             data_seg = {
                                 "banca": lead.get('banca'),
                                 "representante": lead.get('representante'),
@@ -935,12 +833,8 @@ if check_password():
         with tab1:
             st.markdown("#### 📋 Gestión de Clientes Activos")
             
-            # Obtener lista de planes registrados para mapeo y selectores
-            try:
-                res_cp_list = supabase.table("config_planes").select("nombre").order("costo_base").execute()
-                planes_disponibles = [p['nombre'] for p in res_cp_list.data] if res_cp_list.data else ["Básico (SaaS)", "Profesional", "Elite"]
-            except Exception:
-                planes_disponibles = ["Básico (SaaS)", "Profesional", "Elite"]
+            # Lista de planes oficiales estándar
+            planes_disponibles = PLANES_OFICIALES
 
             # Aseguramos columnas y formateo
             if "plan" not in df_clientes.columns:
