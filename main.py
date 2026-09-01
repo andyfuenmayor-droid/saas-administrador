@@ -935,43 +935,122 @@ if check_password():
         with tab1:
             st.markdown("#### 📋 Gestión de Clientes Activos")
             
-            # Formateamos las columnas para mostrar en el dataframe si existen
-            columnas_mostrar = ["email", "nombre_banca", "representante", "telefono", "estado", "direccion", "status", "fecha_vencimiento"]
+            # Obtener lista de planes registrados para mapeo y selectores
+            try:
+                res_cp_list = supabase.table("config_planes").select("nombre").order("costo_base").execute()
+                planes_disponibles = [p['nombre'] for p in res_cp_list.data] if res_cp_list.data else ["Básico (SaaS)", "Profesional", "Elite"]
+            except Exception:
+                planes_disponibles = ["Básico (SaaS)", "Profesional", "Elite"]
+
+            # Aseguramos columnas y formateo
+            if "plan" not in df_clientes.columns:
+                df_clientes["plan"] = "Básico (SaaS)"
+            else:
+                df_clientes["plan"] = df_clientes["plan"].fillna("Básico (SaaS)")
+
+            if "limite_agencias" not in df_clientes.columns:
+                df_clientes["limite_agencias"] = 5
+            else:
+                df_clientes["limite_agencias"] = df_clientes["limite_agencias"].fillna(5)
+
+            columnas_mostrar = ["email", "nombre_banca", "plan", "limite_agencias", "status", "fecha_vencimiento", "representante", "telefono", "estado", "direccion"]
             cols_validas = [c for c in columnas_mostrar if c in df_clientes.columns]
             
             column_names_map = {
                 "email": "Email",
                 "nombre_banca": "Banca/Negocio",
+                "plan": "Plan SaaS Actual",
+                "limite_agencias": "Límite Puntos",
+                "status": "Estatus Licencia",
+                "fecha_vencimiento": "Fecha Vencimiento",
                 "representante": "Representante",
                 "telefono": "WhatsApp/Teléfono",
                 "estado": "Ubicación (Estado)",
-                "direccion": "Dirección",
-                "status": "Estatus Licencia",
-                "fecha_vencimiento": "Fecha Vencimiento"
+                "direccion": "Dirección"
             }
             
             df_mostrar_clientes = df_clientes[cols_validas].rename(columns=column_names_map)
-            st.dataframe(df_mostrar_clientes, use_container_width=True, height=300)
-            with st.expander("✏️ Editar Licencia", expanded=True):
+            st.dataframe(df_mostrar_clientes, use_container_width=True, height=320, hide_index=True)
+
+            with st.expander("✏️ Editar Licencia y Upgrade de Plan", expanded=True):
                 emails_list = df_clientes["email"].tolist()
-                cliente_sel = st.selectbox("Buscar por Email:", emails_list)
+                cliente_sel = st.selectbox("Buscar Cliente por Email:", emails_list, key="sel_cliente_licencia")
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
-                col_a, col_b = st.columns(2)
+                
+                col_a, col_b = st.columns(2, gap="medium")
                 with col_a:
-                    st.write(f"**Banca:** {datos_cliente['nombre_banca']}")
-                    nuevo_status = st.segmented_control("Estatus:", ["activo", "suspendido", "vencido"], default=datos_cliente['status'])
+                    st.markdown(f"**🏢 Banca:** `{datos_cliente.get('nombre_banca', '')}`")
+                    
+                    # Selector de Plan / Upgrade
+                    plan_cliente_actual = str(datos_cliente.get('plan') or 'Básico (SaaS)').strip()
+                    idx_plan = 0
+                    if plan_cliente_actual in planes_disponibles:
+                        idx_plan = planes_disponibles.index(plan_cliente_actual)
+                    else:
+                        for i, p in enumerate(planes_disponibles):
+                            if plan_cliente_actual.lower() in p.lower() or p.lower() in plan_cliente_actual.lower():
+                                idx_plan = i
+                                break
+                    
+                    nuevo_plan = st.selectbox(
+                        "🚀 Plan SaaS (Upgrade / Downgrade):",
+                        options=planes_disponibles,
+                        index=idx_plan,
+                        key=f"plan_sel_{cliente_sel}"
+                    )
+                    
+                    nuevo_limite = st.number_input(
+                        "📍 Límite de Puntos de Venta / Agencias:",
+                        min_value=1,
+                        max_value=9999,
+                        step=1,
+                        value=int(datos_cliente.get('limite_agencias') or 5),
+                        key=f"limite_sel_{cliente_sel}"
+                    )
+                    
+                    nuevo_status = st.segmented_control(
+                        "Estatus:",
+                        ["activo", "suspendido", "vencido"],
+                        default=str(datos_cliente.get('status', 'activo')).strip().lower(),
+                        key=f"status_sel_{cliente_sel}"
+                    )
+                    
                 with col_b:
-                    fecha_orig = datetime.strptime(datos_cliente['fecha_vencimiento'], '%Y-%m-%d')
-                    opcion_t = st.selectbox("Extender suscripción:", ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año"])
+                    venc_raw = datos_cliente.get('fecha_vencimiento') or datetime.now().strftime('%Y-%m-%d')
+                    try:
+                        fecha_orig = datetime.strptime(str(venc_raw).strip()[:10], '%Y-%m-%d')
+                    except Exception:
+                        fecha_orig = datetime.now()
+                        
+                    st.markdown(f"📅 **Vencimiento Actual:** `{fecha_orig.strftime('%Y-%m-%d')}`")
+                    opcion_t = st.selectbox(
+                        "Extender suscripción:",
+                        ["No cambiar", "1 Mes", "3 Meses", "6 Meses", "1 Año", "Personalizada"],
+                        key=f"ext_sel_{cliente_sel}"
+                    )
                     nueva_f = fecha_orig
                     if opcion_t == "1 Mes": nueva_f += timedelta(days=30)
                     elif opcion_t == "3 Meses": nueva_f += timedelta(days=90)
                     elif opcion_t == "6 Meses": nueva_f += timedelta(days=180)
                     elif opcion_t == "1 Año": nueva_f += timedelta(days=365)
-                    st.info(f"Vencimiento: **{nueva_f.strftime('%Y-%m-%d')}**")
-                if st.button("💾 GUARDAR CAMBIOS", type="primary", use_container_width=True):
-                    supabase.table("perfiles").update({"status": nuevo_status, "fecha_vencimiento": nueva_f.strftime('%Y-%m-%d')}).eq("email", cliente_sel).execute()
-                    st.success("✅ Licencia actualizada"); time.sleep(1); st.rerun()
+                    elif opcion_t == "Personalizada":
+                        nueva_f = st.date_input("Nueva Fecha de Vencimiento:", value=fecha_orig, key=f"f_manual_{cliente_sel}")
+                    
+                    fecha_final_str = nueva_f.strftime('%Y-%m-%d') if isinstance(nueva_f, (datetime, pd.Timestamp)) else str(nueva_f)
+                    st.info(f"✨ Nueva Fecha de Vencimiento: **{fecha_final_str}**")
+                    
+                st.markdown("---")
+                if st.button("💾 GUARDAR CAMBIOS DE CLIENTE Y PLAN", type="primary", use_container_width=True, key=f"btn_save_lic_{cliente_sel}"):
+                    data_update_perfil = {
+                        "plan": nuevo_plan,
+                        "limite_agencias": int(nuevo_limite),
+                        "status": nuevo_status,
+                        "fecha_vencimiento": fecha_final_str
+                    }
+                    supabase.table("perfiles").update(data_update_perfil).eq("email", cliente_sel).execute()
+                    st.success(f"✅ ¡Licencia y Plan de **{cliente_sel}** actualizados con éxito a **{nuevo_plan}**!")
+                    time.sleep(1)
+                    st.rerun()
 
                 st.markdown("---")
                 st.markdown("##### 🔑 Cambiar Contraseña")
