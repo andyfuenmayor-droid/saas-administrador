@@ -390,7 +390,7 @@ def normalizar_nombre_plan_saas(plan_val):
     if not plan_val:
         return "elite"
     p = str(plan_val).lower().strip()
-    if "básic" in p or "basic" in p:
+    if "básic" in p or "basic" in p or "sico" in p:
         return "basico"
     if "profesional" in p or "pro" in p:
         return "profesional"
@@ -491,7 +491,6 @@ def seccion_planes():
                 p_nom = p.get('nombre', '')
                 mods_p = obtener_modulos_plan_db(p_nom)
                 df_display.append({
-                    "ID": p.get('id', ''),
                     "Plan": p_nom,
                     "Costo Base (USD)": f"${float(p.get('costo_base', 0)):,.2f}",
                     "Costo / Punto (USD)": f"${float(p.get('costo_por_punto', 0)):,.2f}",
@@ -502,44 +501,45 @@ def seccion_planes():
 
             st.markdown("---")
             
-            # 2. SECCIÓN EDITAR Y ELIMINAR
+            # 2. SECCIÓN EDITAR Y ELIMINAR IDENTIFICADA POR ID ÚNICO
             st.subheader("⚙️ Modificar o Eliminar un Plan")
             
-            nombres_planes = [p['nombre'] for p in planes_db]
-            plan_seleccionado = st.selectbox(
+            mapa_planes = {str(p['id']): p for p in planes_db}
+            plan_id_sel = st.selectbox(
                 "Seleccione el plan que desea modificar o eliminar:",
-                options=nombres_planes,
-                key="sel_plan_gestion"
+                options=list(mapa_planes.keys()),
+                format_func=lambda x: f"{mapa_planes[x]['nombre']} — Base: ${float(mapa_planes[x].get('costo_base', 0)):,.2f} | Punto: ${float(mapa_planes[x].get('costo_por_punto', 0)):,.2f}",
+                key="sel_plan_id_gestion"
             )
 
-            if plan_seleccionado:
-                plan_data = next(p for p in planes_db if p["nombre"] == plan_seleccionado)
-                plan_id = plan_data["id"]
-                current_mods = obtener_modulos_plan_db(plan_seleccionado)
+            if plan_id_sel and plan_id_sel in mapa_planes:
+                plan_data = mapa_planes[plan_id_sel]
+                nombre_actual = plan_data.get("nombre", "")
+                current_mods = obtener_modulos_plan_db(nombre_actual)
 
                 col_mod, col_del = st.columns([6, 4], gap="large")
 
                 with col_mod:
                     with st.container(border=True):
-                        st.markdown(f"#### ✏️ Modificar Plan: `{plan_seleccionado}`")
+                        st.markdown(f"#### ✏️ Modificar: `{nombre_actual}`")
                         
-                        edit_nombre = st.text_input("Nombre del Plan (Modificable)", value=plan_data.get('nombre', ''), key=f"nom_{plan_id}")
+                        edit_nombre = st.text_input("Nombre del Plan (Modificable)", value=nombre_actual, key=f"inp_nom_{plan_id_sel}")
                         
                         c_p1, c_p2 = st.columns(2)
-                        edit_base = c_p1.number_input("Costo Base (USD)", min_value=0.0, step=10.0, value=float(plan_data.get('costo_base', 0)), key=f"base_{plan_id}")
-                        edit_punto = c_p2.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, value=float(plan_data.get('costo_por_punto', 0)), key=f"punto_{plan_id}")
+                        edit_base = c_p1.number_input("Costo Base (USD)", min_value=0.0, step=10.0, value=float(plan_data.get('costo_base', 0)), key=f"inp_base_{plan_id_sel}")
+                        edit_punto = c_p2.number_input("Costo por Punto (USD)", min_value=0.0, step=1.0, value=float(plan_data.get('costo_por_punto', 0)), key=f"inp_punto_{plan_id_sel}")
                         
-                        edit_desc = st.text_area("Descripción del Servicio", value=plan_data.get('descripcion', ''), key=f"desc_{plan_id}")
+                        edit_desc = st.text_area("Descripción del Servicio", value=plan_data.get('descripcion', '') or '', key=f"inp_desc_{plan_id_sel}")
                         
                         st.markdown("**🔑 Módulos Permitidos en Operadora-CMS:**")
                         edit_mods = st.multiselect(
                             "Seleccione los módulos incluidos en este plan:",
                             options=TODOS_LOS_MODULOS_CMS,
                             default=[m for m in current_mods if m in TODOS_LOS_MODULOS_CMS],
-                            key=f"mods_{plan_id}"
+                            key=f"inp_mods_{plan_id_sel}"
                         )
 
-                        if st.button("💾 GUARDAR CAMBIOS DEL PLAN", use_container_width=True, type="primary", key=f"btn_save_{plan_id}"):
+                        if st.button("💾 GUARDAR CAMBIOS DEL PLAN", use_container_width=True, type="primary", key=f"btn_save_{plan_id_sel}"):
                             nuevo_nombre_clean = edit_nombre.strip()
                             if not nuevo_nombre_clean:
                                 st.error("⚠️ El nombre del plan no puede quedar vacío.")
@@ -552,12 +552,12 @@ def seccion_planes():
                                         "descripcion": edit_desc,
                                         "fecha_actualizacion": datetime.now().isoformat()
                                     }
-                                    supabase.table("config_planes").update(data_update).eq("id", plan_id).execute()
+                                    supabase.table("config_planes").update(data_update).eq("id", plan_id_sel).execute()
                                     
                                     # Si el nombre cambió, migrar configuraciones en perfiles
-                                    if nuevo_nombre_clean != plan_seleccionado:
+                                    if nuevo_nombre_clean != nombre_actual:
                                         try:
-                                            supabase.table("perfiles").update({"plan": nuevo_nombre_clean}).eq("plan", plan_seleccionado).execute()
+                                            supabase.table("perfiles").update({"plan": nuevo_nombre_clean}).eq("plan", nombre_actual).execute()
                                         except Exception:
                                             pass
                                         
@@ -573,33 +573,33 @@ def seccion_planes():
                 with col_del:
                     with st.container(border=True):
                         st.markdown("#### 🗑️ Eliminar Plan")
-                        st.warning(f"⚠️ Estás a punto de eliminar el plan **{plan_seleccionado}**.")
+                        st.warning(f"⚠️ Estás a punto de eliminar el plan **{nombre_actual}**.")
                         
                         # Contar clientes en este plan
                         try:
-                            res_clients = supabase.table("perfiles").select("email").eq("plan", plan_seleccionado).execute()
+                            res_clients = supabase.table("perfiles").select("email").eq("plan", nombre_actual).execute()
                             total_asoc = len(res_clients.data or [])
                         except Exception:
                             total_asoc = 0
                             
                         if total_asoc > 0:
-                            st.info(f"ℹ️ Hay **{total_asoc}** suscriptores asignados a este plan actualmente.")
+                            st.info(f"ℹ️ Hay **{total_asoc}** suscriptor(es) asignado(s) a este plan actualmente.")
                         
                         confirma_del = st.checkbox(
-                            f"Confirmo que deseo eliminar definitivamente el plan '{plan_seleccionado}'",
-                            key=f"chk_del_{plan_id}"
+                            f"Confirmo que deseo eliminar definitivamente '{nombre_actual}'",
+                            key=f"chk_del_{plan_id_sel}"
                         )
                         
-                        if st.button(f"🗑️ ELIMINAR PLAN DEFINITIVAMENTE", use_container_width=True, disabled=not confirma_del, key=f"btn_del_{plan_id}"):
+                        if st.button(f"🗑️ ELIMINAR PLAN DEFINITIVAMENTE", use_container_width=True, disabled=not confirma_del, key=f"btn_del_{plan_id_sel}"):
                             try:
-                                # 1. Eliminar de config_planes por id
-                                supabase.table("config_planes").delete().eq("id", plan_id).execute()
+                                # 1. Eliminar de config_planes por id UUID
+                                supabase.table("config_planes").delete().eq("id", plan_id_sel).execute()
                                 
                                 # 2. Limpiar parámetro de módulos en config_sistema
-                                plan_norm = normalizar_nombre_plan_saas(plan_seleccionado)
+                                plan_norm = normalizar_nombre_plan_saas(nombre_actual)
                                 supabase.table("config_sistema").delete().eq("parametro", f"plan_modulos_{plan_norm}").execute()
                                 
-                                st.success(f"🗑️ Plan '{plan_seleccionado}' eliminado correctamente.")
+                                st.success(f"🗑️ Plan '{nombre_actual}' eliminado correctamente de la base de datos.")
                                 time.sleep(1)
                                 st.rerun()
                             except Exception as ex:
