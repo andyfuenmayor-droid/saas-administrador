@@ -964,21 +964,29 @@ if check_password():
                     
                 st.markdown("---")
                 if st.button("💾 GUARDAR CAMBIOS DE BANCA, CLIENTE Y PLAN", type="primary", use_container_width=True, key=f"btn_save_lic_{cliente_sel}"):
-                    data_update_perfil = {
-                        "nombre_banca": str(nuevo_nombre_banca).strip(),
-                        "plan": nuevo_plan,
-                        "limite_agencias": int(nuevo_limite),
-                        "status": nuevo_status,
-                        "fecha_vencimiento": fecha_final_str,
-                        "representante": str(nuevo_representante).strip(),
-                        "telefono": str(nuevo_telefono).strip(),
-                        "estado": str(nuevo_estado).strip(),
-                        "direccion": str(nueva_direccion).strip()
-                    }
-                    supabase.table("perfiles").update(data_update_perfil).eq("email", cliente_sel).execute()
-                    st.success(f"✅ ¡Banca **{nuevo_nombre_banca}**, Licencia y Plan de **{cliente_sel}** actualizados con éxito!")
-                    time.sleep(1)
-                    st.rerun()
+                    try:
+                        c_id = str(datos_cliente.get('id') or '').strip()
+                        data_update_perfil = {
+                            "nombre_banca": str(nuevo_nombre_banca).strip(),
+                            "plan": nuevo_plan,
+                            "limite_agencias": int(nuevo_limite),
+                            "status": nuevo_status,
+                            "fecha_vencimiento": fecha_final_str,
+                            "representante": str(nuevo_representante).strip(),
+                            "telefono": str(nuevo_telefono).strip(),
+                            "estado": str(nuevo_estado).strip(),
+                            "direccion": str(nueva_direccion).strip()
+                        }
+                        if c_id:
+                            supabase.table("perfiles").update(data_update_perfil).eq("id", c_id).execute()
+                        else:
+                            supabase.table("perfiles").update(data_update_perfil).eq("email", cliente_sel.strip()).execute()
+                        
+                        st.success(f"✅ ¡Banca **{nuevo_nombre_banca}**, Licencia y Plan de **{cliente_sel}** actualizados con éxito!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as err:
+                        st.error(f"❌ Error al actualizar en Supabase: {str(err)}")
 
                 st.markdown("---")
                 st.markdown("##### 🔑 Cambiar Contraseña")
