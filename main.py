@@ -866,14 +866,19 @@ if check_password():
             df_mostrar_clientes = df_clientes[cols_validas].rename(columns=column_names_map)
             st.dataframe(df_mostrar_clientes, use_container_width=True, height=320, hide_index=True)
 
-            with st.expander("✏️ Editar Licencia y Upgrade de Plan", expanded=True):
+            with st.expander("✏️ Editar Licencia, Banca y Plan del Suscriptor", expanded=True):
                 emails_list = df_clientes["email"].tolist()
                 cliente_sel = st.selectbox("Buscar Cliente por Email:", emails_list, key="sel_cliente_licencia")
                 datos_cliente = df_clientes[df_clientes["email"] == cliente_sel].iloc[0]
                 
                 col_a, col_b = st.columns(2, gap="medium")
                 with col_a:
-                    st.markdown(f"**🏢 Banca:** `{datos_cliente.get('nombre_banca', '')}`")
+                    nuevo_nombre_banca = st.text_input(
+                        "🏢 Nombre de la Banca / Negocio:",
+                        value=str(datos_cliente.get('nombre_banca') or datos_cliente.get('banca') or '').strip(),
+                        placeholder="Ej: BANCA ANDY VENTAS",
+                        key=f"banca_nom_{cliente_sel}"
+                    )
                     
                     # Selector de Plan / Upgrade
                     plan_cliente_actual = str(datos_cliente.get('plan') or 'Básico (SaaS)').strip()
@@ -910,6 +915,30 @@ if check_password():
                     )
                     
                 with col_b:
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        nuevo_representante = st.text_input(
+                            "👤 Representante:",
+                            value=str(datos_cliente.get('representante') or '').strip(),
+                            key=f"rep_nom_{cliente_sel}"
+                        )
+                        nuevo_estado = st.text_input(
+                            "📍 Ubicación (Estado):",
+                            value=str(datos_cliente.get('estado') or '').strip(),
+                            key=f"edo_nom_{cliente_sel}"
+                        )
+                    with col_b2:
+                        nuevo_telefono = st.text_input(
+                            "📞 WhatsApp / Teléfono:",
+                            value=str(datos_cliente.get('telefono') or '').strip(),
+                            key=f"tel_nom_{cliente_sel}"
+                        )
+                        nueva_direccion = st.text_input(
+                            "📫 Dirección:",
+                            value=str(datos_cliente.get('direccion') or '').strip(),
+                            key=f"dir_nom_{cliente_sel}"
+                        )
+
                     venc_raw = datos_cliente.get('fecha_vencimiento') or datetime.now().strftime('%Y-%m-%d')
                     try:
                         fecha_orig = datetime.strptime(str(venc_raw).strip()[:10], '%Y-%m-%d')
@@ -934,15 +963,20 @@ if check_password():
                     st.info(f"✨ Nueva Fecha de Vencimiento: **{fecha_final_str}**")
                     
                 st.markdown("---")
-                if st.button("💾 GUARDAR CAMBIOS DE CLIENTE Y PLAN", type="primary", use_container_width=True, key=f"btn_save_lic_{cliente_sel}"):
+                if st.button("💾 GUARDAR CAMBIOS DE BANCA, CLIENTE Y PLAN", type="primary", use_container_width=True, key=f"btn_save_lic_{cliente_sel}"):
                     data_update_perfil = {
+                        "nombre_banca": str(nuevo_nombre_banca).strip(),
                         "plan": nuevo_plan,
                         "limite_agencias": int(nuevo_limite),
                         "status": nuevo_status,
-                        "fecha_vencimiento": fecha_final_str
+                        "fecha_vencimiento": fecha_final_str,
+                        "representante": str(nuevo_representante).strip(),
+                        "telefono": str(nuevo_telefono).strip(),
+                        "estado": str(nuevo_estado).strip(),
+                        "direccion": str(nueva_direccion).strip()
                     }
                     supabase.table("perfiles").update(data_update_perfil).eq("email", cliente_sel).execute()
-                    st.success(f"✅ ¡Licencia y Plan de **{cliente_sel}** actualizados con éxito a **{nuevo_plan}**!")
+                    st.success(f"✅ ¡Banca **{nuevo_nombre_banca}**, Licencia y Plan de **{cliente_sel}** actualizados con éxito!")
                     time.sleep(1)
                     st.rerun()
 
