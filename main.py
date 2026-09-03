@@ -194,18 +194,43 @@ st.markdown("""
     /* Botones primarios y secundarios */
     button[kind="primary"], button[kind="secondary"] {
         border-radius: 12px !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
+        font-weight: 700 !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
-    button[kind="primary"] {
-        background-color: #02ab21 !important;
-        color: white !important;
-        border: 1px solid rgba(2, 171, 33, 0.4) !important;
+    button[kind="primary"],
+    button[data-testid="stBaseButton-primary"],
+    [data-testid="stBaseButton-primary"] button,
+    .stFormSubmitButton > button {
+        background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+        background-color: #059669 !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border: 1px solid rgba(52, 211, 153, 0.45) !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
+        letter-spacing: 0.03em !important;
+        padding: 0.65rem 1.4rem !important;
+        box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
     }
-    button[kind="primary"]:hover {
-        background-color: #02941c !important;
-        box-shadow: 0 4px 15px rgba(2, 171, 33, 0.4) !important;
+    button[kind="primary"]:hover,
+    button[data-testid="stBaseButton-primary"]:hover,
+    [data-testid="stBaseButton-primary"] button:hover,
+    .stFormSubmitButton > button:hover {
+        background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+        background-color: #047857 !important;
+        border-color: rgba(52, 211, 153, 0.7) !important;
+        box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
         transform: translateY(-1px) !important;
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
+    button[kind="primary"] *,
+    .stFormSubmitButton > button * {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
     }
     
     /* Ajustes de espaciado */
