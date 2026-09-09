@@ -18,9 +18,9 @@ jobs:
           port: 22
           script: |
             cd /home/saas-administrador
-            git restore main.py
+            git reset --hard HEAD
             git pull origin main
             docker build -t gestion-saas-pro .
-            docker stop gestion-app || true
-            docker rm gestion-app || true
+            docker rm -f gestion-app || true
             docker run -d --name gestion-app -p 8502:8501 --env-file .env --restart unless-stopped gestion-saas-pro
+
