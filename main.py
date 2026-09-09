@@ -394,12 +394,12 @@ TODOS_LOS_MODULOS_CMS = [
     "Gastos Administrativos", "Cierre ", "Ajustes"
 ]
 
-PLANES_ESTANDAR = {
+PLANES_DEFAULT_DICT = {
     "Básico (SaaS)": {
         "costo_base": 150.0,
         "costo_por_punto": 5.0,
         "descripcion": "Gestión operativa completa de agencias hasta Caja Maestra.",
-        "modulos_default": [
+        "modulos": [
             "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
             "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
             "Venta Real", "Rep. Agencia", "Caja Maestra",
@@ -410,7 +410,7 @@ PLANES_ESTANDAR = {
         "costo_base": 250.0,
         "costo_por_punto": 8.0,
         "descripcion": "Gestión integral de Agencias, Operadoras y Proveedores.",
-        "modulos_default": [
+        "modulos": [
             "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
             "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
             "Venta Real", "Rep. Agencia", "Caja Maestra",
@@ -422,11 +422,12 @@ PLANES_ESTANDAR = {
         "costo_base": 500.0,
         "costo_por_punto": 12.0,
         "descripcion": "Control total sin límites: Incluye Auditoría Híbrida y Gastos Administrativos.",
-        "modulos_default": list(TODOS_LOS_MODULOS_CMS)
+        "modulos": list(TODOS_LOS_MODULOS_CMS)
     }
 }
 
-PLANES_OFICIALES = list(PLANES_ESTANDAR.keys())
+PLANES_ESTANDAR = PLANES_DEFAULT_DICT
+PLANES_OFICIALES = list(PLANES_DEFAULT_DICT.keys())
 
 def normalizar_nombre_plan_saas(plan_val):
     if not plan_val:
@@ -438,139 +439,255 @@ def normalizar_nombre_plan_saas(plan_val):
         return "profesional"
     if "elite" in p or "élit" in p or "premium" in p or "admin" in p:
         return "elite"
-    return "elite"
+    import re
+    cleaned = re.sub(r'[^a-zA-Z0-9_]', '', p.replace(' ', '_'))
+    return cleaned or "plan"
 
-def obtener_modulos_plan_db(plan_nombre):
-    plan_norm = normalizar_nombre_plan_saas(plan_nombre)
-    default_mods = PLANES_ESTANDAR.get(plan_nombre, {}).get("modulos_default")
-    if not default_mods:
-        if plan_norm == "basico": default_mods = PLANES_ESTANDAR["Básico (SaaS)"]["modulos_default"]
-        elif plan_norm == "profesional": default_mods = PLANES_ESTANDAR["Profesional"]["modulos_default"]
-        else: default_mods = PLANES_ESTANDAR["Elite"]["modulos_default"]
-        
+def obtener_catalogo_planes_db():
+    """Obtiene el catálogo dinámico de planes desde config_sistema o valores de fábrica."""
     try:
-        res = supabase.table("config_sistema").select("valor").eq("parametro", f"plan_modulos_{plan_norm}").execute()
+        res = supabase.table("config_sistema").select("valor").eq("parametro", "planes_saas_catalogo").execute()
         if res.data and len(res.data) > 0:
             val = res.data[0].get("valor")
             if val:
-                parsed = json.loads(val)
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    return parsed
-    except Exception:
-        pass
-    return default_mods
+                cat = json.loads(val)
+                if isinstance(cat, dict) and len(cat) > 0:
+                    for k, v in cat.items():
+                        if "modulos" not in v:
+                            v["modulos"] = list(TODOS_LOS_MODULOS_CMS)
+                        if "costo_base" not in v:
+                            v["costo_base"] = 150.0
+                        if "costo_por_punto" not in v:
+                            v["costo_por_punto"] = 5.0
+                        if "descripcion" not in v:
+                            v["descripcion"] = "Plan operativo Multibanca Express"
+                    return cat
+    except Exception as e:
+        print(f"Error cargando planes_saas_catalogo: {e}")
+    
+    # Inicializar con valores de fábrica si aún no existen en DB
+    guardar_catalogo_planes_db(PLANES_DEFAULT_DICT)
+    return dict(PLANES_DEFAULT_DICT)
 
-def guardar_modulos_plan_db(plan_nombre, modulos_lista):
+def guardar_catalogo_planes_db(catalogo_dict):
+    """Guarda el catálogo en config_sistema y sincroniza claves heredadas plan_modulos_*."""
     try:
-        plan_norm = normalizar_nombre_plan_saas(plan_nombre)
-        val_json = json.dumps(modulos_lista)
-        
         admin_res = supabase.table("perfiles").select("id").eq("role", "admin").limit(1).execute()
         admin_id = admin_res.data[0]["id"] if admin_res.data else "f300c8ad-ddd5-4953-a267-d5b3eb80ce39"
         
-        supabase.table("config_sistema").delete().eq("parametro", f"plan_modulos_{plan_norm}").execute()
+        # 1. Guardar catálogo completo
+        val_json = json.dumps(catalogo_dict)
+        supabase.table("config_sistema").delete().eq("parametro", "planes_saas_catalogo").execute()
         supabase.table("config_sistema").insert({
-            "parametro": f"plan_modulos_{plan_norm}",
+            "parametro": "planes_saas_catalogo",
             "valor": val_json,
             "user_id": admin_id
         }).execute()
+
+        # 2. Sincronizar módulos por plan para compatibilidad con operadora-cms-web
+        for nom, datos in catalogo_dict.items():
+            norm = normalizar_nombre_plan_saas(nom)
+            mods_json = json.dumps(datos.get("modulos", []))
+            supabase.table("config_sistema").delete().eq("parametro", f"plan_modulos_{norm}").execute()
+            supabase.table("config_sistema").insert({
+                "parametro": f"plan_modulos_{norm}",
+                "valor": mods_json,
+                "user_id": admin_id
+            }).execute()
+
         return True
     except Exception as e:
-        print(f"Error guardando modulos en DB: {e}")
+        print(f"Error guardando catalogo en DB: {e}")
         return False
 
+def obtener_modulos_plan_db(plan_nombre):
+    catalogo = obtener_catalogo_planes_db()
+    if plan_nombre in catalogo:
+        return catalogo[plan_nombre].get("modulos", list(TODOS_LOS_MODULOS_CMS))
+    norm = normalizar_nombre_plan_saas(plan_nombre)
+    for k, v in catalogo.items():
+        if normalizar_nombre_plan_saas(k) == norm:
+            return v.get("modulos", list(TODOS_LOS_MODULOS_CMS))
+    return list(TODOS_LOS_MODULOS_CMS)
+
+def guardar_modulos_plan_db(plan_nombre, modulos_lista):
+    catalogo = obtener_catalogo_planes_db()
+    if plan_nombre in catalogo:
+        catalogo[plan_nombre]["modulos"] = modulos_lista
+        return guardar_catalogo_planes_db(catalogo)
+    return False
+
 def seccion_planes():
-    st.markdown("### ⚙️ Matriz de Módulos y Permisos por Plan SaaS")
-    st.caption("Configure de forma dinámica qué módulos del menú de **Operadora-CMS** están habilitados para cada uno de los 3 planes oficiales. Los cambios se sincronizan en tiempo real con el CRM.")
+    st.markdown("### ⚙️ Catálogo Dinámico de Planes SaaS y Matriz de Permisos")
+    st.caption("Administre, cree y modifique en tiempo real todos los renglones y columnas de los planes oficiales (Nombre, Costo Base, Costo por Punto, Descripción y Módulos permitidos).")
 
     # Acceso Rápido a Planes Comerciales en la Web Pública
     col_inf, col_btn = st.columns([3, 1.2])
     with col_inf:
-        st.info("💡 **Sincronización Comercial:** Los 3 planes oficiales están enlazados con la web comercial pública. Los visitantes pueden ver sus características y registrarse directamente.")
+        st.info("💡 **Sincronización Total:** Cada modificación o nuevo plan creado aquí se sincroniza automáticamente con el cotizador de solicitudes, el gestor de clientes y los permisos del CRM.")
     with col_btn:
         st.link_button("🌐 Ver Planes en la Web (Público)", "https://webapp.multibancaexpress.com/#planes", type="primary", use_container_width=True)
 
-    # Resumen de Planes Oficiales
+    catalogo = obtener_catalogo_planes_db()
+
+    # 1. TABLA RESUMEN GENERAL (Todos los renglones y columnas)
     df_resumen = []
-    for nom, datos in PLANES_ESTANDAR.items():
-        mods = obtener_modulos_plan_db(nom)
+    for nom, datos in catalogo.items():
+        mods = datos.get("modulos", [])
         df_resumen.append({
             "Plan": nom,
-            "Costo Base": f"${datos['costo_base']:,.2f} USD",
-            "Costo / Punto": f"${datos['costo_por_punto']:,.2f} USD",
+            "Costo Base": f"${float(datos.get('costo_base', 0)):,.2f} USD",
+            "Costo / Punto": f"${float(datos.get('costo_por_punto', 0)):,.2f} USD",
             "Total Módulos Activos": f"{len(mods)} / {len(TODOS_LOS_MODULOS_CMS)} módulos",
-            "Descripción": datos["descripcion"]
+            "Descripción": datos.get("descripcion", "")
         })
     st.dataframe(pd.DataFrame(df_resumen), use_container_width=True, hide_index=True)
 
-    # Tarjetas de enlace rápido por plan
-    c_card1, c_card2, c_card3 = st.columns(3)
-    with c_card1:
-        st.markdown("""
-        <div class='odoo-card' style='padding:14px; text-align:center;'>
-            <h4 style='margin:0 0 6px 0; color:#38bdf8;'>Básico (SaaS)</h4>
-            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$150/mes + $5/punto</p>
-            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#38bdf8; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
-        </div>
-        """, unsafe_allow_html=True)
-    with c_card2:
-        st.markdown("""
-        <div class='odoo-card' style='padding:14px; text-align:center; border:1px solid #10b981;'>
-            <h4 style='margin:0 0 6px 0; color:#10b981;'>Profesional ⭐</h4>
-            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$250/mes + $8/punto</p>
-            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#10b981; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
-        </div>
-        """, unsafe_allow_html=True)
-    with c_card3:
-        st.markdown("""
-        <div class='odoo-card' style='padding:14px; text-align:center; border:1px solid #a855f7;'>
-            <h4 style='margin:0 0 6px 0; color:#c084fc;'>Elite Enterprise</h4>
-            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$500/mes + $12/punto</p>
-            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#c084fc; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
-        </div>
-        """, unsafe_allow_html=True)
-
     st.markdown("---")
-    
-    # Editor Modular de Módulos por Plan
-    plan_edit_sel = st.selectbox(
-        "Seleccione el Plan a Configurar:",
-        options=PLANES_OFICIALES,
-        key="sel_matriz_plan"
-    )
 
-    if plan_edit_sel:
-        mods_actuales = obtener_modulos_plan_db(plan_edit_sel)
-        info_plan = PLANES_ESTANDAR[plan_edit_sel]
+    col_ed, col_new = st.columns(2, gap="large")
 
+    # 2. EDITOR DE PLANES EXISTENTES (Modificar cualquier columna o renglón)
+    with col_ed:
         with st.container(border=True):
-            st.markdown(f"#### 🛠️ Configurar Módulos para: `{plan_edit_sel}`")
-            st.info(f"ℹ️ {info_plan['descripcion']}")
-            
-            sel_mods = st.multiselect(
-                "Módulos permitidos en Operadora-CMS para este plan:",
+            st.markdown("#### ✏️ Modificar Plan Existente")
+            st.caption("Edite cualquiera de las columnas y módulos del plan seleccionado:")
+
+            lista_planes = list(catalogo.keys())
+            plan_sel = st.selectbox("Seleccione el Plan a Modificar:", options=lista_planes, key="sel_plan_editar")
+
+            if plan_sel:
+                datos_plan = catalogo[plan_sel]
+                
+                # Columna 1: Nombre del Plan
+                edit_nombre = st.text_input("🏢 Nombre del Plan:", value=plan_sel, key=f"nom_edit_{plan_sel}").strip()
+
+                # Columnas 2 y 3: Costo Base y Costo por Punto
+                col_c1, col_c2 = st.columns(2)
+                with col_c1:
+                    edit_costo_base = st.number_input(
+                        "💰 Costo Base (USD):", 
+                        min_value=0.0, 
+                        step=5.0, 
+                        value=float(datos_plan.get("costo_base", 150.0)),
+                        key=f"cbase_edit_{plan_sel}"
+                    )
+                with col_c2:
+                    edit_costo_punto = st.number_input(
+                        "📍 Costo / Punto Adicional (USD):", 
+                        min_value=0.0, 
+                        step=1.0, 
+                        value=float(datos_plan.get("costo_por_punto", 5.0)),
+                        key=f"cpunto_edit_{plan_sel}"
+                    )
+
+                # Columna 5: Descripción
+                edit_descripcion = st.text_area(
+                    "📝 Descripción Comercial:", 
+                    value=datos_plan.get("descripcion", ""),
+                    height=80,
+                    key=f"desc_edit_{plan_sel}"
+                ).strip()
+
+                # Columna 4: Módulos Activos (X / 23)
+                mods_actuales = datos_plan.get("modulos", [])
+                edit_mods = st.multiselect(
+                    f"🛠️ Módulos Habilitados ({len(mods_actuales)}/{len(TODOS_LOS_MODULOS_CMS)}):",
+                    options=TODOS_LOS_MODULOS_CMS,
+                    default=[m for m in mods_actuales if m in TODOS_LOS_MODULOS_CMS],
+                    key=f"mods_edit_{plan_sel}"
+                )
+
+                col_btn1, col_btn2 = st.columns([1.5, 1])
+                with col_btn1:
+                    if st.button("💾 GUARDAR CAMBIOS DE ESTE PLAN", type="primary", use_container_width=True, key=f"btn_save_edit_{plan_sel}"):
+                        if not edit_nombre:
+                            st.error("El nombre del plan no puede estar vacío.")
+                        else:
+                            final_mods = ["Inicio"] + [m for m in edit_mods if m != "Inicio"]
+                            if edit_nombre != plan_sel:
+                                del catalogo[plan_sel]
+                            catalogo[edit_nombre] = {
+                                "costo_base": float(edit_costo_base),
+                                "costo_por_punto": float(edit_costo_punto),
+                                "descripcion": edit_descripcion,
+                                "modulos": final_mods
+                            }
+                            if guardar_catalogo_planes_db(catalogo):
+                                st.success(f"✨ ¡Plan **{edit_nombre}** actualizado con éxito en la base de datos!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("Error al guardar en base de datos.")
+
+                with col_btn2:
+                    if st.button("🗑️ Eliminar Plan", use_container_width=True, key=f"btn_del_{plan_sel}"):
+                        if len(catalogo) <= 1:
+                            st.error("No puedes eliminar el único plan activo.")
+                        else:
+                            del catalogo[plan_sel]
+                            if guardar_catalogo_planes_db(catalogo):
+                                st.warning(f"Plan **{plan_sel}** eliminado del catálogo.")
+                                time.sleep(1)
+                                st.rerun()
+
+    # 3. CREADOR DE NUEVOS PLANES (Nuevo renglón)
+    with col_new:
+        with st.container(border=True):
+            st.markdown("#### ➕ Crear Nuevo Plan SaaS")
+            st.caption("Añada un nuevo nivel de suscripción con su propio precio, descripción y módulos:")
+
+            nuevo_nombre_plan = st.text_input("🏢 Nombre del Nuevo Plan:", placeholder="Ej: Plan Especial Agencias / Gold", key="new_plan_name").strip()
+
+            col_nc1, col_nc2 = st.columns(2)
+            with col_nc1:
+                nuevo_costo_base = st.number_input("💰 Costo Base (USD):", min_value=0.0, step=5.0, value=180.0, key="new_plan_costo_base")
+            with col_nc2:
+                nuevo_costo_punto = st.number_input("📍 Costo / Punto (USD):", min_value=0.0, step=1.0, value=6.0, key="new_plan_costo_punto")
+
+            nueva_descripcion = st.text_area(
+                "📝 Descripción Comercial:", 
+                placeholder="Ej: Plan para redes intermedias con soporte prioritario.",
+                height=80,
+                key="new_plan_desc"
+            ).strip()
+
+            nuevos_mods = st.multiselect(
+                "🛠️ Módulos Habilitados para este nuevo plan:",
                 options=TODOS_LOS_MODULOS_CMS,
-                default=[m for m in mods_actuales if m in TODOS_LOS_MODULOS_CMS],
-                key=f"matriz_mods_{plan_edit_sel}"
+                default=["Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores", "Cargar Ventas", "Saldo Agencias", "Caja Maestra"],
+                key="new_plan_mods"
             )
 
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button("💾 GUARDAR CONFIGURACIÓN DE MÓDULOS", use_container_width=True, type="primary", key=f"btn_save_m_{plan_edit_sel}"):
-                    final_mods = ["Inicio"] + [m for m in sel_mods if m != "Inicio"]
-                    if guardar_modulos_plan_db(plan_edit_sel, final_mods):
-                        st.success(f"✨ ¡Módulos del plan '{plan_edit_sel}' actualizados con éxito!")
+            if st.button("🚀 CREAR Y GUARDAR NUEVO PLAN", type="primary", use_container_width=True, key="btn_create_new_plan"):
+                if not nuevo_nombre_plan:
+                    st.error("Por favor ingresa un nombre para el nuevo plan.")
+                elif nuevo_nombre_plan in catalogo:
+                    st.error(f"Ya existe un plan con el nombre '{nuevo_nombre_plan}'.")
+                else:
+                    final_mods_new = ["Inicio"] + [m for m in nuevos_mods if m != "Inicio"]
+                    catalogo[nuevo_nombre_plan] = {
+                        "costo_base": float(nuevo_costo_base),
+                        "costo_por_punto": float(nuevo_costo_punto),
+                        "descripcion": nueva_descripcion or "Plan operativo Multibanca Express",
+                        "modulos": final_mods_new
+                    }
+                    if guardar_catalogo_planes_db(catalogo):
+                        st.success(f"🎉 ¡Nuevo plan **{nuevo_nombre_plan}** creado exitosamente!")
                         time.sleep(1)
                         st.rerun()
                     else:
-                        st.error("Error al guardar en base de datos.")
-            with col_b2:
-                if st.button("🔄 Restablecer Módulos de Fábrica", use_container_width=True, key=f"btn_rst_m_{plan_edit_sel}"):
-                    def_mods = info_plan["modulos_default"]
-                    guardar_modulos_plan_db(plan_edit_sel, def_mods)
-                    st.success(f"🔄 Plan '{plan_edit_sel}' restablecido a valores iniciales.")
-                    time.sleep(1)
-                    st.rerun()
+                        st.error("Error al guardar el nuevo plan en base de datos.")
+
+    st.markdown("---")
+    # 4. Restablecer Valores de Fábrica
+    with st.expander("⚠️ Opciones Avanzadas de Mantenimiento"):
+        st.write("Si deseas restablecer todos los planes a los valores originales de fábrica (Básico $150, Profesional $250, Elite $500):")
+        if st.button("🔄 Restablecer Catálogo de Fábrica", use_container_width=False, key="btn_reset_fabrica_catalogo"):
+            if guardar_catalogo_planes_db(PLANES_DEFAULT_DICT):
+                st.success("🔄 Catálogo de planes restablecido a valores de fábrica.")
+                time.sleep(1)
+                st.rerun()
 
 
 def seccion_solicitudes():
@@ -628,13 +745,15 @@ def seccion_solicitudes():
                     """, unsafe_allow_html=True)
                 with col_planes:
                     st.markdown("##### 💰 Cotizador Dinámico")
-                    plan_sel = st.selectbox("Plan a Cotizar:", PLANES_OFICIALES)
+                    catalogo_cotizar = obtener_catalogo_planes_db()
+                    planes_cotizar_opts = list(catalogo_cotizar.keys())
+                    plan_sel = st.selectbox("Plan a Cotizar:", planes_cotizar_opts)
                     descuento = st.number_input("💸 Aplicar Descuento (USD):", min_value=0.0, step=5.0, value=0.0)
                     metodos_pago = st.multiselect("💳 Métodos de Pago a ofrecer:", ["Zelle", "PayPal", "Binance (USDT)", "Pago Móvil", "Transferencia ACH", "Efectivo"], default=["Zelle", "Binance (USDT)"])
                     
-                    datos_plan = PLANES_ESTANDAR[plan_sel]
+                    datos_plan = catalogo_cotizar.get(plan_sel, {"costo_base": 150.0, "costo_por_punto": 5.0})
                     pts = int(lead.get('puntos_venta', 0))
-                    total_final = max(0.0, (float(datos_plan['costo_base']) + (pts * float(datos_plan['costo_por_punto']))) - descuento)
+                    total_final = max(0.0, (float(datos_plan.get('costo_base', 150.0)) + (pts * float(datos_plan.get('costo_por_punto', 5.0)))) - descuento)
                     st.markdown(f"<div class='odoo-card' style='padding: 20px; border-left: 5px solid #02ab21 !important; background: linear-gradient(135deg, rgba(2, 171, 33, 0.1) 0%, rgba(2, 171, 33, 0.02) 100%) !important;'><strong style='font-size: 16px; color: #ffffff;'>Propuesta: {plan_sel}</strong><h2 style='margin: 5px 0; color: #02ab21;'>${total_final:,.2f} USD</h2></div>", unsafe_allow_html=True)
                     
                     tel_raw = str(lead.get('telefono', ''))
@@ -908,8 +1027,9 @@ if check_password():
         with tab1:
             st.markdown("#### 📋 Gestión de Clientes Activos")
             
-            # Lista de planes oficiales estándar
-            planes_disponibles = PLANES_OFICIALES
+            # Lista de planes oficiales dinámicos desde base de datos
+            catalogo_clientes = obtener_catalogo_planes_db()
+            planes_disponibles = list(catalogo_clientes.keys())
 
             # Aseguramos columnas y formateo
             if "plan" not in df_clientes.columns:
