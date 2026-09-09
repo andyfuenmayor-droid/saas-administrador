@@ -481,7 +481,14 @@ def guardar_modulos_plan_db(plan_nombre, modulos_lista):
 
 def seccion_planes():
     st.markdown("### ⚙️ Matriz de Módulos y Permisos por Plan SaaS")
-    st.caption("Configure de forma dinámica qué módulos del menú de **Operadora-CMS** están habilitados para cada uno de los 3 planes oficiales. Los cambios se sincronizan en tiempo real.")
+    st.caption("Configure de forma dinámica qué módulos del menú de **Operadora-CMS** están habilitados para cada uno de los 3 planes oficiales. Los cambios se sincronizan en tiempo real con el CRM.")
+
+    # Acceso Rápido a Planes Comerciales en la Web Pública
+    col_inf, col_btn = st.columns([3, 1.2])
+    with col_inf:
+        st.info("💡 **Sincronización Comercial:** Los 3 planes oficiales están enlazados con la web comercial pública. Los visitantes pueden ver sus características y registrarse directamente.")
+    with col_btn:
+        st.link_button("🌐 Ver Planes en la Web (Público)", "https://webapp.multibancaexpress.com/#planes", type="primary", use_container_width=True)
 
     # Resumen de Planes Oficiales
     df_resumen = []
@@ -495,6 +502,33 @@ def seccion_planes():
             "Descripción": datos["descripcion"]
         })
     st.dataframe(pd.DataFrame(df_resumen), use_container_width=True, hide_index=True)
+
+    # Tarjetas de enlace rápido por plan
+    c_card1, c_card2, c_card3 = st.columns(3)
+    with c_card1:
+        st.markdown("""
+        <div class='odoo-card' style='padding:14px; text-align:center;'>
+            <h4 style='margin:0 0 6px 0; color:#38bdf8;'>Básico (SaaS)</h4>
+            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$150/mes + $5/punto</p>
+            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#38bdf8; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
+        </div>
+        """, unsafe_allow_html=True)
+    with c_card2:
+        st.markdown("""
+        <div class='odoo-card' style='padding:14px; text-align:center; border:1px solid #10b981;'>
+            <h4 style='margin:0 0 6px 0; color:#10b981;'>Profesional ⭐</h4>
+            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$250/mes + $8/punto</p>
+            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#10b981; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
+        </div>
+        """, unsafe_allow_html=True)
+    with c_card3:
+        st.markdown("""
+        <div class='odoo-card' style='padding:14px; text-align:center; border:1px solid #a855f7;'>
+            <h4 style='margin:0 0 6px 0; color:#c084fc;'>Elite Enterprise</h4>
+            <p style='font-size:12px; margin:0 0 10px 0; color:#94a3b8;'>$500/mes + $12/punto</p>
+            <a href='https://webapp.multibancaexpress.com/#planes' target='_blank' style='text-decoration:none; color:#c084fc; font-size:12px; font-weight:bold;'>🔗 Ver en Landing Web →</a>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
     
@@ -540,7 +574,12 @@ def seccion_planes():
 
 
 def seccion_solicitudes():
-    st.markdown("### 🚀 Gestión Estratégica de Leads")
+    col_s_tit, col_s_btn = st.columns([3, 1.2])
+    with col_s_tit:
+        st.markdown("### 🚀 Gestión Estratégica de Leads")
+        st.caption("Prospectos que completaron el formulario de registro en la landing comercial pública.")
+    with col_s_btn:
+        st.link_button("📝 Ver Formulario Público", "https://webapp.multibancaexpress.com", use_container_width=True)
     try:
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
@@ -845,6 +884,17 @@ if check_password():
             if "password_correct" in st.session_state:
                 del st.session_state["password_correct"]
             st.rerun()
+
+    # Barra de Enlace y Navegación con el Ecosistema Multibanca Express
+    col_e1, col_e2, col_e3, col_e4 = st.columns([1.2, 1.2, 1.2, 1.4])
+    with col_e1:
+        st.link_button("🚀 Ir al CRM Operadora", "https://crm.multibancaexpress.com", use_container_width=True)
+    with col_e2:
+        st.link_button("🌐 Ver Planes en Web", "https://webapp.multibancaexpress.com/#planes", use_container_width=True)
+    with col_e3:
+        st.link_button("📝 Formulario Registro", "https://webapp.multibancaexpress.com", use_container_width=True)
+    with col_e4:
+        st.caption("🔗 **Ecosistema:** `crm.` (Operativo) • `webapp.` (Comercial) • `gestion.` (Admin)")
 
     st.write("---")
 
