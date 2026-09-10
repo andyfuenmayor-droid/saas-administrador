@@ -526,7 +526,7 @@ def seccion_planes():
     with col_inf:
         st.info("💡 **Sincronización Total:** Cada modificación o nuevo plan creado aquí se sincroniza automáticamente con el cotizador de solicitudes, el gestor de clientes y los permisos del CRM.")
     with col_btn:
-        st.link_button("🌐 Ver Planes en la Web (Público)", "https://webapp.multibancaexpress.com/#planes", type="primary", use_container_width=True)
+        st.link_button("🌐 Ver Planes en la Web (Público)", "https://multibancaexpress.com/#planes", type="primary", use_container_width=True)
 
     catalogo = obtener_catalogo_planes_db()
 
@@ -696,7 +696,7 @@ def seccion_solicitudes():
         st.markdown("### 🚀 Gestión Estratégica de Leads")
         st.caption("Prospectos que completaron el formulario de registro en la landing comercial pública.")
     with col_s_btn:
-        st.link_button("📝 Ver Formulario Público", "https://webapp.multibancaexpress.com", use_container_width=True)
+        st.link_button("📝 Ver Formulario Público", "https://multibancaexpress.com", use_container_width=True)
     try:
         res_leads = supabase.table("suscriptores_leads").select("*").execute()
         leads = res_leads.data
@@ -1009,11 +1009,11 @@ if check_password():
     with col_e1:
         st.link_button("🚀 Ir al CRM Operadora", "https://crm.multibancaexpress.com", use_container_width=True)
     with col_e2:
-        st.link_button("🌐 Ver Planes en Web", "https://webapp.multibancaexpress.com/#planes", use_container_width=True)
+        st.link_button("🌐 Ver Planes en Web", "https://multibancaexpress.com/#planes", use_container_width=True)
     with col_e3:
-        st.link_button("📝 Formulario Registro", "https://webapp.multibancaexpress.com", use_container_width=True)
+        st.link_button("📝 Formulario Registro", "https://multibancaexpress.com", use_container_width=True)
     with col_e4:
-        st.caption("🔗 **Ecosistema:** `crm.` (Operativo) • `webapp.` (Comercial) • `gestion.` (Admin)")
+        st.caption("🔗 **Ecosistema:** `multibancaexpress.com` (Comercial) • `crm.` (Operativo) • `webapp.` (Streamlit)")
 
     st.write("---")
 
