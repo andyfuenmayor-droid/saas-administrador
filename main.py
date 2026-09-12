@@ -387,7 +387,7 @@ def mostrar_metricas(df):
 import json
 
 TODOS_LOS_MODULOS_CMS = [
-    "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
+    "Inicio", "Confirmaciones", "Rep. Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
     "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
     "Venta Real", "Rep. Agencia", "Auditoría", "Caja Maestra",
     "Pagos a Operador", "Venta Operadora", "Reporte Operadora", "Cierre Operadora", "Config. Proveedores",
@@ -400,7 +400,7 @@ PLANES_DEFAULT_DICT = {
         "costo_por_punto": 5.0,
         "descripcion": "Gestión operativa completa de agencias hasta Caja Maestra.",
         "modulos": [
-            "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
+            "Inicio", "Confirmaciones", "Rep. Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
             "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
             "Venta Real", "Rep. Agencia", "Caja Maestra",
             "Cierre ", "Ajustes"
@@ -411,7 +411,7 @@ PLANES_DEFAULT_DICT = {
         "costo_por_punto": 8.0,
         "descripcion": "Gestión integral de Agencias, Operadoras y Proveedores.",
         "modulos": [
-            "Inicio", "Pizarra Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
+            "Inicio", "Confirmaciones", "Rep. Confirmaciones", "Sistemas", "Monedas", "Cuentas Bancarias", "Agencias", "Cobradores",
             "Cargar Ventas", "Pagos Agencias", "Gastos Agencias", "Saldo Agencias", 
             "Venta Real", "Rep. Agencia", "Caja Maestra",
             "Pagos a Operador", "Venta Operadora", "Reporte Operadora", "Cierre Operadora", "Config. Proveedores",
@@ -455,6 +455,17 @@ def obtener_catalogo_planes_db():
                     for k, v in cat.items():
                         if "modulos" not in v:
                             v["modulos"] = list(TODOS_LOS_MODULOS_CMS)
+                        else:
+                            m_list = []
+                            for m in v["modulos"]:
+                                if m == "Pizarra Confirmaciones":
+                                    if "Confirmaciones" not in m_list:
+                                        m_list.append("Confirmaciones")
+                                    if "Rep. Confirmaciones" not in m_list:
+                                        m_list.append("Rep. Confirmaciones")
+                                else:
+                                    m_list.append(m)
+                            v["modulos"] = m_list
                         if "costo_base" not in v:
                             v["costo_base"] = 150.0
                         if "costo_por_punto" not in v:
